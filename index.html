@@ -1,0 +1,1858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Gradebook</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style id="app-style">
+  :root {
+    --paper: #eef1ec;
+    --paper-raised: #f8faf6;
+    --paper-sunken: #e4e8e1;
+    --ink: #1a2332;
+    --ink-soft: #57616b;
+    --ink-faint: #8a9290;
+    --line: #c7d0c6;
+    --line-strong: #aab5a7;
+    --accent: #a9791f;
+    --accent-strong: #8c6417;
+    --accent-ink: #fffdf7;
+    --good: #2f6b48;
+    --good-bg: #e3efe6;
+    --bad: #a13326;
+    --bad-bg: #f6e6e2;
+    --pending: #57616b;
+    --pending-bg: #e7e9e4;
+    --shadow: 0 1px 2px rgba(26,35,50,0.07), 0 6px 16px rgba(26,35,50,0.06);
+    --radius: 10px;
+    --font-display: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+    --font-body: 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #141a20;
+      --paper-raised: #1b232b;
+      --paper-sunken: #10151a;
+      --ink: #e9e7dd;
+      --ink-soft: #a9b1ae;
+      --ink-faint: #6f7875;
+      --line: #2c3730;
+      --line-strong: #3c4a40;
+      --accent: #d9ae4e;
+      --accent-strong: #e8c271;
+      --accent-ink: #1a2332;
+      --good: #6fbe8e;
+      --good-bg: #1e2f24;
+      --bad: #e08272;
+      --bad-bg: #33201d;
+      --pending: #9aa5ac;
+      --pending-bg: #232b30;
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 6px 20px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #141a20;
+    --paper-raised: #1b232b;
+    --paper-sunken: #10151a;
+    --ink: #e9e7dd;
+    --ink-soft: #a9b1ae;
+    --ink-faint: #6f7875;
+    --line: #2c3730;
+    --line-strong: #3c4a40;
+    --accent: #d9ae4e;
+    --accent-strong: #e8c271;
+    --accent-ink: #1a2332;
+    --good: #6fbe8e;
+    --good-bg: #1e2f24;
+    --bad: #e08272;
+    --bad-bg: #33201d;
+    --pending: #9aa5ac;
+    --pending-bg: #232b30;
+    --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 6px 20px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; color: var(--ink); }
+  a { color: var(--accent-strong); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 14px 20px;
+    background: var(--paper-raised);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: baseline; gap: 8px; }
+  .brand .mark { color: var(--accent); font-family: var(--font-display); font-size: 1.3rem; }
+  .brand .name { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; letter-spacing: 0.01em; }
+  .brand .tagline { font-size: 0.75rem; color: var(--ink-faint); font-family: var(--font-mono); }
+
+  .roleswitch { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; padding: 3px; background: var(--paper-sunken); gap: 2px; }
+  .roleswitch button {
+    border: none; background: transparent; padding: 7px 16px; border-radius: 999px;
+    font-family: var(--font-body); font-size: 0.85rem; font-weight: 600; color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .roleswitch button.active { background: var(--ink); color: var(--paper-raised); }
+  :root[data-theme="dark"] .roleswitch button.active { background: var(--accent); color: var(--accent-ink); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .roleswitch button.active { background: var(--accent); color: var(--accent-ink); } }
+
+  .shell { max-width: 760px; margin: 0 auto; padding: 28px 20px 80px; }
+  .shell.wide { max-width: 980px; }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 6px; }
+  .pagehead { margin-bottom: 24px; }
+  .pagehead h1 { font-size: 1.6rem; }
+  .pagehead p.sub { margin: 6px 0 0; color: var(--ink-soft); max-width: 62ch; }
+
+  .card { background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; }
+  .card + .card { margin-top: 14px; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .row.between { justify-content: space-between; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); }
+  .field .hint { font-size: 0.75rem; color: var(--ink-faint); }
+  input[type="text"], input[type="password"], input[type="number"], input[type="file"], select, textarea {
+    font-family: var(--font-body); font-size: 0.95rem; color: var(--ink);
+    background: var(--paper); border: 1px solid var(--line-strong); border-radius: 7px;
+    padding: 9px 11px; width: 100%;
+  }
+  textarea { resize: vertical; min-height: 70px; font-family: var(--font-mono); font-size: 0.85rem; }
+  input:disabled, select:disabled { opacity: 0.55; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: var(--font-body); font-weight: 600; font-size: 0.88rem;
+    border-radius: 7px; padding: 9px 16px; border: 1px solid transparent; cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-ghost { background: transparent; border-color: var(--line-strong); color: var(--ink); }
+  .btn-ghost:hover { border-color: var(--ink-soft); }
+  .btn-danger { background: transparent; border-color: var(--bad); color: var(--bad); }
+  .btn-danger:hover { background: var(--bad-bg); }
+  .btn-sm { padding: 5px 11px; font-size: 0.78rem; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.01em; }
+  .badge-good { background: var(--good-bg); color: var(--good); }
+  .badge-bad { background: var(--bad-bg); color: var(--bad); }
+  .badge-pending { background: var(--pending-bg); color: var(--pending); }
+  .badge-accent { background: var(--accent); color: var(--accent-ink); }
+
+  .ledger { display: flex; flex-direction: column; }
+  .ledger-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 4px; border-bottom: 1px solid var(--line);
+  }
+  .ledger-row:last-child { border-bottom: none; }
+  .ledger-row .title { font-weight: 600; }
+  .ledger-row .meta { font-size: 0.78rem; color: var(--ink-faint); font-family: var(--font-mono); margin-top: 2px; }
+  .ledger-row.clickable { cursor: pointer; }
+  .ledger-row.clickable:hover { background: var(--paper-sunken); margin: 0 -10px; padding-left: 14px; padding-right: 14px; border-radius: 8px; }
+
+  .empty {
+    text-align: center; padding: 40px 20px; color: var(--ink-faint);
+    border: 1px dashed var(--line-strong); border-radius: var(--radius);
+  }
+  .empty p { margin: 4px 0; }
+
+  .banner { border-radius: 8px; padding: 12px 14px; font-size: 0.85rem; display: flex; gap: 10px; align-items: flex-start; }
+  .banner-warn { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); }
+  .banner-info { background: var(--pending-bg); color: var(--ink-soft); border: 1px solid var(--line-strong); }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+  table.scores { width: 100%; border-collapse: collapse; font-size: 0.86rem; min-width: 560px; }
+  table.scores th { text-align: left; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); background: var(--paper-sunken); padding: 10px 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; }
+  table.scores td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.scores tr:last-child td { border-bottom: none; }
+  table.scores td.num, table.scores th.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+  .tabs button { background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 4px; margin-right: 18px; font-family: var(--font-body); font-weight: 600; font-size: 0.88rem; color: var(--ink-faint); cursor: pointer; }
+  .tabs button.active { color: var(--ink); border-bottom-color: var(--accent); }
+
+  .qcard { border-bottom: 1px solid var(--line); padding: 18px 0; }
+  .qcard:last-of-type { border-bottom: none; }
+  .qnum { font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-strong); letter-spacing: 0.05em; margin-bottom: 6px; }
+  .qtext { font-weight: 600; margin-bottom: 10px; }
+  .opts { display: flex; flex-direction: column; gap: 8px; }
+  .opt { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line-strong); border-radius: 7px; cursor: pointer; }
+  .opt:hover { border-color: var(--accent); }
+  .opt.picked, .opt:has(input:checked) { border-color: var(--accent); background: var(--paper-sunken); }
+  .opt input { margin: 0; }
+  .opt .letter { font-family: var(--font-mono); font-weight: 700; color: var(--ink-faint); width: 1.1em; }
+
+  .qreview { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0; }
+  .qreview .mark { font-family: var(--font-mono); font-size: 0.8rem; width: 20px; flex: none; }
+  .qreview.correct .mark { color: var(--good); }
+  .qreview.wrong .mark { color: var(--bad); }
+  .qreview .ans { font-size: 0.82rem; color: var(--ink-soft); margin-top: 3px; }
+
+  .scoreplate { text-align: center; padding: 30px 20px; }
+  .scoreplate .num { font-family: var(--font-mono); font-size: 3rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .scoreplate .frac { font-size: 1.3rem; color: var(--ink-faint); }
+  .scoreplate .pct { font-family: var(--font-mono); color: var(--ink-soft); margin-top: 4px; }
+
+  .qdraft { border: 1px solid var(--line-strong); border-radius: 8px; padding: 14px; background: var(--paper-sunken); }
+  .qdraft + .qdraft { margin-top: 10px; }
+  .qdraft .row.between { margin-bottom: 8px; }
+  .optrow { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .optrow .letter { font-family: var(--font-mono); font-weight: 700; width: 1.2em; color: var(--ink-faint); }
+
+  .dropzone { border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: 26px; text-align: center; color: var(--ink-soft); }
+  .dropzone strong { color: var(--ink); }
+
+  .footnote { font-size: 0.76rem; color: var(--ink-faint); margin-top: 4px; }
+  .divider { height: 1px; background: var(--line); border: none; margin: 6px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } .topbar { flex-wrap: wrap; } }
+
+  code, .kbd { font-family: var(--font-mono); background: var(--paper-sunken); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font-size: 0.85em; }
+  pre.template { font-family: var(--font-mono); font-size: 0.8rem; background: var(--paper-sunken); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; line-height: 1.6; }
+
+  @media print {
+    .topbar, .banner, .row form, button, a[data-action] { display: none !important; }
+    body { background: #fff; }
+    .shell { max-width: none; }
+    .card { border: none; box-shadow: none; padding: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function () {
+  "use strict";
+
+  // Paste the Apps Script Web App URL here (Deploy -> New deployment -> Web
+  // app -> copy the URL ending in /exec). Nothing works until this is set.
+  var API_URL = "https://script.google.com/macros/s/AKfycbxW05AvCm42kkhHYVtYTVXV3Tivy-6YoGK9V1QkX-dNA4tNB4QTi4s2bC4F47ir7aJE/exec";
+  var POLL_MS = 4000; // how often every open page re-checks the sheet for changes
+
+  /* ---------------- state ---------------- */
+  // STATE is a local mirror of the Google Sheet, refreshed by polling —
+  // there's no realtime push here (a plain webpage can't get one from a
+  // Sheet), so a change made in one browser can take up to POLL_MS to show
+  // up in another. A fresh load starts empty and fills in on the first poll.
+  var STATE = { courses: [], exams: [], submissions: [], roster: [], updatedAt: null };
+
+  /* ---------------- ui (per-viewer, kept only in this browser) ---------------- */
+  var UI = { role: null, readOnly: false, banner: null, teacherAuthed: false, teacherPassword: null };
+  try {
+    var savedUi = sessionStorage.getItem("examplatform_ui");
+    if (savedUi) UI = JSON.parse(savedUi);
+  } catch (e) {}
+  UI.readOnly = false; // re-probe each fresh load; only a failed write sets this true again
+  UI.banner = null; // banners are shown once for the action that caused them, never restored on load
+
+  function saveUiSnapshot() {
+    try {
+      var toSave = clone(UI);
+      delete toSave.banner; // transient — never persisted, so a past error can't get stuck showing forever
+      sessionStorage.setItem("examplatform_ui", JSON.stringify(toSave));
+    } catch (e) {}
+  }
+
+  /* ---------------- small utilities ---------------- */
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function genId(prefix) {
+    return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function fmtDate(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  // For prefilling a <input type="datetime-local"> from a stored ISO string, in the viewer's own local time.
+  function toDatetimeLocalValue(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  // A datetime-local input's value has no timezone of its own — it means the viewer's local time,
+  // so parsing it with `new Date(value)` and storing the resulting ISO string keeps the deadline
+  // pinned to one absolute moment no matter which timezone a student or the instructor is in.
+  function datetimeLocalToIso(value) {
+    if (!value) return null;
+    var d = new Date(value);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  function isExamOpen(ex) {
+    if (ex.status !== "open") return false;
+    if (ex.deadline && Date.now() >= new Date(ex.deadline).getTime()) return false;
+    return true;
+  }
+  function courseById(id) { for (var i = 0; i < STATE.courses.length; i++) if (STATE.courses[i].id === id) return STATE.courses[i]; return null; }
+  // This platform runs one course at a time. STATE.courses is kept as an
+  // array (so old saved data keeps loading) but the UI only ever shows/uses
+  // its first entry.
+  function theCourse() { return STATE.courses.length ? STATE.courses[0] : null; }
+  function examById(id) { for (var i = 0; i < STATE.exams.length; i++) if (STATE.exams[i].id === id) return STATE.exams[i]; return null; }
+  function examsForCourse(cid) { return STATE.exams.filter(function (e) { return e.courseId === cid; }); }
+  function submissionFor(examId, studentId) {
+    for (var i = 0; i < STATE.submissions.length; i++) {
+      var s = STATE.submissions[i];
+      if (s.examId === examId && s.studentId === studentId) return s;
+    }
+    return null;
+  }
+  function submissionsForExam(examId) { return STATE.submissions.filter(function (s) { return s.examId === examId; }); }
+
+  function csvEscape(v) {
+    var s = String(v == null ? "" : v);
+    if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  /* ---------------- grading ---------------- */
+  function normalizeShort(s) {
+    return String(s == null ? "" : s).trim().replace(/\s+/g, " ").toLowerCase();
+  }
+  function gradeAnswer(q, given) {
+    if (q.type === "mc") {
+      var picked = given === "" || given == null ? -1 : parseInt(given, 10);
+      return picked === q.answerIndex;
+    }
+    var accepted = String(q.answerText || "").split("|").map(normalizeShort).filter(Boolean);
+    return accepted.indexOf(normalizeShort(given)) !== -1;
+  }
+  function scoreSubmission(exam, answers) {
+    var total = 0, max = 0, detail = [];
+    exam.questions.forEach(function (q) {
+      var given = answers[q.id];
+      var correct = gradeAnswer(q, given);
+      var pts = Number(q.points) || 0;
+      max += pts;
+      if (correct) total += pts;
+      detail.push({ qid: q.id, correct: correct, given: given });
+    });
+    return { score: total, max: max, detail: detail };
+  }
+
+  /* ---------------- word (.docx) parsing, entirely client-side ---------------- */
+  var ZIP_EOCD_SIG = 0x06054b50, ZIP_CD_SIG = 0x02014b50, ZIP_LOCAL_SIG = 0x04034b50;
+
+  function parseZipEntries(buf) {
+    var view = new DataView(buf);
+    var bytes = new Uint8Array(buf);
+    var minI = Math.max(0, bytes.length - 65557);
+    var eocdOffset = -1;
+    for (var i = bytes.length - 22; i >= minI; i--) {
+      if (view.getUint32(i, true) === ZIP_EOCD_SIG) { eocdOffset = i; break; }
+    }
+    if (eocdOffset === -1) throw new Error("ZIP_NOT_FOUND");
+    var entryCount = view.getUint16(eocdOffset + 10, true);
+    var cdOffset = view.getUint32(eocdOffset + 16, true);
+    var entries = [];
+    var p = cdOffset;
+    var decoder = new TextDecoder("utf-8");
+    for (var e = 0; e < entryCount; e++) {
+      if (view.getUint32(p, true) !== ZIP_CD_SIG) break;
+      var method = view.getUint16(p + 10, true);
+      var compSize = view.getUint32(p + 20, true);
+      var nameLen = view.getUint16(p + 28, true);
+      var extraLen = view.getUint16(p + 30, true);
+      var commentLen = view.getUint16(p + 32, true);
+      var localOffset = view.getUint32(p + 42, true);
+      var name = decoder.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+      entries.push({ name: name, method: method, compSize: compSize, localOffset: localOffset });
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+    return entries;
+  }
+
+  function readZipEntry(buf, entry) {
+    var view = new DataView(buf);
+    var bytes = new Uint8Array(buf);
+    var lp = entry.localOffset;
+    if (view.getUint32(lp, true) !== ZIP_LOCAL_SIG) throw new Error("BAD_LOCAL_HEADER");
+    var nameLen = view.getUint16(lp + 26, true);
+    var extraLen = view.getUint16(lp + 28, true);
+    var dataStart = lp + 30 + nameLen + extraLen;
+    var compData = bytes.subarray(dataStart, dataStart + entry.compSize);
+    if (entry.method === 0) return Promise.resolve(compData);
+    if (entry.method === 8) {
+      if (!window.DecompressionStream) return Promise.reject(new Error("NO_DECOMPRESSION_STREAM"));
+      var ds = new DecompressionStream("deflate-raw");
+      var stream = new Blob([compData]).stream().pipeThrough(ds);
+      return new Response(stream).arrayBuffer().then(function (ab) { return new Uint8Array(ab); });
+    }
+    return Promise.reject(new Error("UNSUPPORTED_COMPRESSION"));
+  }
+
+  function extractDocxParagraphs(file) {
+    return file.arrayBuffer().then(function (buf) {
+      // A few specific, very common real-world causes get their own diagnosis
+      // before the generic "doesn't look like a .docx" fallback:
+      if (buf.byteLength === 0) throw new Error("EMPTY_FILE");
+      var head8 = new Uint8Array(buf, 0, Math.min(8, buf.byteLength));
+      // Legacy binary .doc (and .xls/.ppt) files are OLE Compound File
+      // Binary format, signature D0 CF 11 E0 A1 B1 1A E1 — a very common
+      // mix-up when a file was saved as the old "Word 97-2003 Document"
+      // format but manually renamed to end in .docx.
+      if (head8[0] === 0xd0 && head8[1] === 0xcf && head8[2] === 0x11 && head8[3] === 0xe0) throw new Error("LEGACY_DOC");
+      var head = new Uint8Array(buf, 0, Math.min(2, buf.byteLength));
+      if (!(head[0] === 0x50 && head[1] === 0x4b)) throw new Error("NOT_DOCX");
+      var entries = parseZipEntries(buf);
+      var docEntry = null;
+      for (var k = 0; k < entries.length; k++) { if (entries[k].name === "word/document.xml") { docEntry = entries[k]; break; } }
+      if (!docEntry) throw new Error("NO_DOCUMENT_XML");
+      return readZipEntry(buf, docEntry).then(function (xmlBytes) {
+        var xmlText = new TextDecoder("utf-8").decode(xmlBytes);
+        var xmlDoc = new DOMParser().parseFromString(xmlText, "application/xml");
+        if (xmlDoc.getElementsByTagName("parsererror").length) throw new Error("XML_PARSE_ERROR");
+        var paras = xmlDoc.getElementsByTagName("w:p");
+        var lines = [];
+        // Word's "Numbering" list button (and its auto-numbering when you type
+        // "1." and it auto-formats) never writes the visible "1." into the
+        // paragraph's text — it's generated from list metadata (<w:numPr>) at
+        // display time, invisible to plain text extraction. Without this, every
+        // question in an auto-numbered list comes through with no leading
+        // number at all, and none of them get recognized. So: reconstruct that
+        // visible numbering ourselves from list position — a top-level list
+        // item (ilvl 0) becomes the next question number, an indented one
+        // (ilvl 1+) becomes the next option letter for the current question.
+        var autoQNum = 0;
+        var autoOptLetter = 0;
+        var OPT_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+        for (var pI = 0; pI < paras.length; pI++) {
+          var ts = paras[pI].getElementsByTagName("w:t");
+          var text = "";
+          for (var tI = 0; tI < ts.length; tI++) text += ts[tI].textContent;
+          var numPrs = paras[pI].getElementsByTagName("w:numPr");
+          if (numPrs.length && text.trim()) {
+            var ilvlEls = numPrs[0].getElementsByTagName("w:ilvl");
+            var ilvlAttr = ilvlEls.length ? ilvlEls[0].getAttribute("w:val") : null;
+            var ilvl = ilvlAttr === null ? 0 : parseInt(ilvlAttr, 10) || 0;
+            if (ilvl === 0) {
+              if (!/^\s*\d+\s*[.)]/.test(text)) { autoQNum++; text = autoQNum + ". " + text; }
+              autoOptLetter = 0;
+            } else {
+              if (!/^\s*[A-Ha-h]\s*[.)]/.test(text)) {
+                text = (OPT_LETTERS[autoOptLetter] || "?") + ". " + text;
+                autoOptLetter++;
+              }
+            }
+          }
+          lines.push(text);
+        }
+        return lines;
+      });
+    });
+  }
+
+  function parseQuestionsFromLines(lines) {
+    var qRe = /^\s*(\d+)[.)]\s*(.*)$/;
+    var optRe = /^\s*([A-Da-d])[.)]\s*(.*)$/;
+    var ansRe = /^\s*(answer)\s*[:：]\s*(.*)$/i;
+    var ptsRe = /^\s*(points?)\s*[:：]\s*(\d+)/i;
+    var questions = [];
+    var cur = null;
+    function pushCur() {
+      if (!cur) return;
+      if (cur.options.length >= 2) {
+        cur.type = "mc";
+        var letterIdx = { A: 0, B: 1, C: 2, D: 3 };
+        var ch = (cur.answerRaw || "").trim().toUpperCase().charAt(0);
+        cur.answerIndex = letterIdx.hasOwnProperty(ch) ? letterIdx[ch] : 0;
+      } else {
+        cur.type = "short";
+        cur.answerText = (cur.answerRaw || "").trim();
+      }
+      if (!cur.points) cur.points = 1;
+      delete cur.answerRaw;
+      questions.push(cur);
+    }
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (!line || !line.trim()) continue;
+      var qm = line.match(qRe);
+      if (qm) {
+        pushCur();
+        cur = { id: genId("q"), text: qm[2].trim(), options: [], answerRaw: "", points: 0 };
+        continue;
+      }
+      if (!cur) continue;
+      var om = line.match(optRe);
+      if (om) { cur.options.push(om[2].trim()); continue; }
+      var am = line.match(ansRe);
+      if (am) { cur.answerRaw = am[2].trim(); continue; }
+      var pm = line.match(ptsRe);
+      if (pm) { cur.points = parseInt(pm[2], 10); continue; }
+      if (cur.options.length === 0 && !cur.answerRaw) cur.text += " " + line.trim();
+    }
+    pushCur();
+    return questions;
+  }
+
+  function parseAnswerKeyLines(text) {
+    // Accepts one answer per line ("1. B") and also a comma/semicolon-separated
+    // list on a single line ("1-A, 2-B, 3-D") — both are common ways people
+    // write an answer key, so split on newlines AND commas/semicolons and
+    // parse each resulting piece the same way.
+    var map = {};
+    var tokens = String(text || "").split(/[\r\n,;]+/);
+    var itemRe = /^\s*(\d+)\s*[.)\-:]?\s*(.+?)\s*$/;
+    for (var i = 0; i < tokens.length; i++) {
+      var token = tokens[i];
+      if (!token || !token.trim()) continue;
+      var m = token.match(itemRe);
+      if (!m) continue;
+      var num = parseInt(m[1], 10);
+      var ans = m[2].trim();
+      if (ans) map[num] = ans;
+    }
+    return map;
+  }
+
+  function applyAnswerKey(questions, keyText) {
+    var map = parseAnswerKeyLines(keyText);
+    var keyCount = 0;
+    for (var k in map) { if (map.hasOwnProperty(k)) keyCount++; }
+    var applied = 0;
+    var letters = ["A", "B", "C", "D", "E", "F"];
+    for (var i = 0; i < questions.length; i++) {
+      var q = questions[i];
+      var num = i + 1;
+      if (!map.hasOwnProperty(num)) continue;
+      var raw = map[num];
+      if (q.type === "mc") {
+        var idx = -1;
+        // Only treat the answer as a bare letter code (A, B, C…) when the
+        // WHOLE answer is just that letter (plus optional "." or ")") —
+        // otherwise an option whose full text happens to start with a
+        // letter A-F (e.g. "Dublin", "Berlin") gets matched to the wrong
+        // option by that leading letter instead of by its actual text.
+        var letterOnly = raw.trim().replace(/[.)]\s*$/, "").trim();
+        if (letterOnly.length === 1 && /[A-Fa-f]/.test(letterOnly)) {
+          var ch = letterOnly.toUpperCase();
+          for (var li = 0; li < q.options.length; li++) {
+            if (letters[li] === ch) { idx = li; break; }
+          }
+        }
+        if (idx === -1) {
+          var norm = normalizeShort(raw);
+          for (var oi = 0; oi < q.options.length; oi++) {
+            if (normalizeShort(q.options[oi]) === norm) { idx = oi; break; }
+          }
+        }
+        if (idx !== -1) { q.answerIndex = idx; applied++; }
+      } else {
+        q.answerText = raw;
+        applied++;
+      }
+    }
+    return { applied: applied, keyCount: keyCount };
+  }
+
+  var DOCX_TEMPLATE_TXT =
+    "Gradebook exam upload format\n" +
+    "----------------------------------------\n" +
+    "Each question starts with a number and a period. Multiple-choice questions list options A-D; short-answer questions skip the options and just give the answer.\n\n" +
+    "1. What is the capital of France?\n" +
+    "A. Marseille\n" +
+    "B. Paris\n" +
+    "C. Lyon\n" +
+    "D. Nice\n" +
+    "Answer: B\n" +
+    "Points: 5\n\n" +
+    "2. Write the chemical formula for water.\n" +
+    "Answer: H2O | water\n" +
+    "Points: 5\n\n" +
+    "- For short answer, separate multiple accepted answers with | (e.g. H2O | water).\n" +
+    "- If you leave out Points, the question is worth 1 point by default.\n" +
+    "- Write your MS Word (.docx) file in this format, then upload it.\n";
+
+  /* ---------------- persistence: polling a Google Sheet via Apps Script ---------------- */
+  // No realtime push here — a plain webpage can't subscribe to a Sheet the
+  // way an artifact can subscribe to the db capability, so instead every
+  // open page polls GET .../exec?action=getState on a timer and re-renders
+  // when it gets a fresh copy. That's the "the response is a bit slower"
+  // trade-off: a change another viewer makes shows up here within POLL_MS,
+  // not sub-second, but no code needs to know or care about that — it's
+  // just how state changes arrive.
+  var DB_STATUS = "loading"; // "loading" | "ready" | "unavailable"
+  var pollTimer = null;
+
+  function applyStateSnapshot_(state) {
+    STATE.courses = state.courses || [];
+    STATE.exams = state.exams || [];
+    STATE.submissions = state.submissions || [];
+    STATE.roster = state.roster || [];
+  }
+
+  function pollState() {
+    fetch(API_URL + "?action=getState&_=" + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (state) {
+        DB_STATUS = "ready";
+        if (UI.banner === "unavailable") UI.banner = null;
+        applyStateSnapshot_(state);
+        render();
+      }, function () {
+        DB_STATUS = "unavailable";
+        if (!UI.banner) UI.banner = "unavailable";
+        render();
+      });
+  }
+
+  function subscribeDb() {
+    pollState();
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(pollState, POLL_MS);
+  }
+
+  // Every teacher-only action carries the instructor's password; the
+  // backend is what actually checks it (see Code.gs) — this client never
+  // decides who's allowed to write, it just finds out when a write fails.
+  var TEACHER_ACTIONS = {
+    setUpCourse: 1, renameCourse: 1, addExam: 1, setExamStatus: 1, setExamDeadline: 1,
+    reopenExam: 1, deleteExam: 1, overrideScore: 1, addRosterEntries: 1, removeRosterEntry: 1
+  };
+
+  function postAction_(action, payload, password) {
+    var body = { action: action, payload: payload || {} };
+    if (password !== undefined) body.password = password;
+    return fetch(API_URL, {
+      method: "POST",
+      // text/plain (not application/json) on purpose: it keeps this a
+      // "simple request" so the browser skips the CORS preflight (OPTIONS)
+      // that Apps Script Web Apps don't answer.
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); });
+  }
+
+  // A submission's id is deterministic (exam + student), not random: a
+  // second "submit" for the same exam/student is then just a write to the
+  // same row rather than a race with a scan-first check, and it's what
+  // makes "already submitted" detectable from the id alone.
+  function submissionDocId(examId, studentId) {
+    return String(examId) + "__" + String(studentId);
+  }
+  function rosterEntryFor(studentId) {
+    for (var i = 0; i < STATE.roster.length; i++) if (STATE.roster[i].studentId === studentId) return STATE.roster[i];
+    return null;
+  }
+
+  // Every UI action becomes one POST — type maps straight to the backend's
+  // action name, and everything else on the object becomes its payload, so
+  // this needs no per-action translation table on the client side.
+  function applyAction(action) {
+    var type = action.type;
+    var payload = {};
+    Object.keys(action).forEach(function (k) { if (k !== "type") payload[k] = action[k]; });
+    var password = TEACHER_ACTIONS[type] ? UI.teacherPassword : undefined;
+    postAction_(type, payload, password).then(function (res) {
+      if (res && res.ok) {
+        applyStateSnapshot_(res.state);
+        afterWrite({ ok: true });
+      } else if (res && res.error === "bad_password") {
+        // The saved password no longer works (changed, or never was one) —
+        // sign this device out of Instructor rather than pretend it worked.
+        UI.teacherAuthed = false;
+        UI.teacherPassword = null;
+        saveUiSnapshot();
+        afterWrite({ ok: false, readOnly: true });
+      } else {
+        afterWrite({ ok: false, error: (res && res.error) || "unknown" });
+      }
+    }, function (err) {
+      afterWrite({ ok: false, error: err });
+    });
+  }
+
+  function afterWrite(result) {
+    if (result && result.readOnly) {
+      UI.banner = "readonly";
+    } else if (result && result.unavailable) {
+      UI.banner = "unavailable";
+    } else if (result && result.error) {
+      UI.banner = "error";
+    }
+    render();
+  }
+
+  // Verifies a password against the server without performing any write —
+  // the actual security check on every real write still happens server-side
+  // (see Code.gs), this just gives the instructor a normal sign-in moment
+  // instead of finding out only when their first action silently fails.
+  function submitTeacherPassword(pw) {
+    UI.teacherGateChecking = true;
+    UI.teacherGateError = null;
+    render();
+    postAction_("checkPassword", {}, pw).then(function (res) {
+      UI.teacherGateChecking = false;
+      if (res && res.ok) {
+        UI.teacherAuthed = true;
+        UI.teacherPassword = pw;
+        UI.teacherGateError = null;
+        if (res.state) applyStateSnapshot_(res.state);
+        saveUiSnapshot();
+        render();
+      } else {
+        UI.teacherAuthed = false;
+        UI.teacherPassword = null;
+        UI.teacherGateError = "That password isn't right. Try again.";
+        render();
+      }
+    }, function () {
+      UI.teacherGateChecking = false;
+      UI.teacherGateError = "Couldn't reach the server. Check your connection and try again.";
+      render();
+    });
+  }
+
+  /* ---------------- student identity (this device only) ---------------- */
+  // Session-scoped on purpose: a student should be asked their name and ID
+  // again on their next visit (a new day, or the next student sitting down
+  // at a shared/lab computer), not have it silently remembered forever the
+  // way localStorage would. It's still remembered for the rest of THIS
+  // visit, so taking several exams back-to-back doesn't mean retyping each
+  // time — it only resets once the tab/browser session ends.
+  function getIdentity() {
+    try {
+      var raw = sessionStorage.getItem("examplatform_identity");
+      if (!raw) return null;
+      var v = JSON.parse(raw);
+      if (v && v.name && v.studentId) return v;
+    } catch (e) {}
+    return null;
+  }
+  function setIdentity(name, studentId) {
+    try { sessionStorage.setItem("examplatform_identity", JSON.stringify({ name: name, studentId: studentId })); } catch (e) {}
+  }
+  function clearIdentity() {
+    try { sessionStorage.removeItem("examplatform_identity"); } catch (e) {}
+  }
+
+  /* ---------------- transient (per-view, reset on navigation) ---------------- */
+  var DRAFT = null;      // teacher: exam being composed {title, mode, questions}
+  var ANSWERS = {};      // student: answers while taking an exam, keyed by question id
+  var LOCAL_RESULT = null; // student: last computed result, shown on the result screen
+  var confirmArm = null; // "type:id" of a delete pending a second confirming click
+  var gateError = "";
+  var uploadError = "";
+  var manualError = "";
+  var answerKeyMsg = "";
+  var savedExamNotice = null; // { title, courseId } — shown right after a save, asking "add another or done?"
+  var rosterUploadMsg = "";
+  var rosterUploadError = "";
+  var identifyError = ""; // student: shown when a registered roster rejects their student ID
+
+  function freshDraft() {
+    return { title: "", mode: "manual", questions: [freshQDraft()], answerKeyText: "" };
+  }
+  function freshQDraft() {
+    return { id: genId("q"), type: "mc", text: "", options: ["", "", "", ""], answerIndex: 0, answerText: "", points: 1 };
+  }
+
+  /* ---------------- rendering ---------------- */
+  function render() {
+    saveUiSnapshot();
+    var app = document.getElementById("app");
+    var wide = UI.role === "teacher" && UI.teacherTab === "scores";
+    app.innerHTML =
+      topbarHtml() +
+      '<main class="shell' + (wide ? " wide" : "") + '">' +
+      bannerHtml() +
+      bodyHtml() +
+      "</main>";
+  }
+
+  function topbarHtml() {
+    return (
+      '<header class="topbar">' +
+      '<div class="brand"><span class="mark">&#9998;</span>' +
+      '<span><span class="name">Gradebook</span><br><span class="tagline">Quizzes &middot; Grading &middot; Records</span></span></div>' +
+      '<div class="roleswitch" role="tablist" aria-label="Switch view">' +
+      '<button type="button" data-action="switchRole" data-role="student" class="' + (UI.role === "student" ? "active" : "") + '">Student</button>' +
+      '<button type="button" data-action="switchRole" data-role="teacher" class="' + (UI.role === "teacher" ? "active" : "") + '">Instructor</button>' +
+      "</div></header>"
+    );
+  }
+
+  function bannerHtml() {
+    if (UI.banner === "readonly") {
+      return '<div class="banner banner-warn" style="margin-bottom:16px">Your instructor password wasn&#39;t accepted, so that last action wasn&#39;t saved. Sign back in to Instructor with the current password and try again.</div>';
+    }
+    if (UI.banner === "unavailable") {
+      return '<div class="banner banner-info" style="margin-bottom:16px">Can&#39;t reach the Gradebook server right now, so nothing entered here will be recorded. Check your internet connection, or ask your instructor if the sheet might be unreachable.</div>';
+    }
+    if (UI.banner === "error") {
+      return '<div class="banner banner-warn" style="margin-bottom:16px">Something went wrong while saving. Please try again.</div>';
+    }
+    return "";
+  }
+
+  function bodyHtml() {
+    if (UI.role === "teacher") return teacherViewHtml();
+    if (UI.role === "student") return studentViewHtml();
+    return landingHtml();
+  }
+
+  function landingHtml() {
+    return (
+      '<div class="pagehead"><p class="eyebrow">Get started</p><h1>Which view would you like?</h1>' +
+      '<p class="sub">Students take exams with just their name and student ID; instructors create exams and review scores.</p></div>' +
+      '<div class="grid2">' +
+      '<button type="button" class="card" style="text-align:left;cursor:pointer" data-action="switchRole" data-role="student">' +
+      '<p class="eyebrow">Student</p><h2 style="font-size:1.05rem">Take an exam</h2><p class="sub" style="margin-top:6px">See what&#39;s open and take a quiz.</p></button>' +
+      '<button type="button" class="card" style="text-align:left;cursor:pointer" data-action="switchRole" data-role="teacher">' +
+      '<p class="eyebrow">Instructor</p><h2 style="font-size:1.05rem">Manage exams &middot; View scores</h2><p class="sub" style="margin-top:6px">Upload exams and check student scores.</p></button>' +
+      "</div>"
+    );
+  }
+
+  /* ===== student ===== */
+  function studentViewHtml() {
+    var identity = getIdentity();
+    if (UI.screen === "done") return studentDoneHtml();
+    if (!identity) return studentIdentifyHtml();
+    if (UI.screen === "take") return studentTakeHtml(identity);
+    if (UI.screen === "result") return studentResultHtml(identity);
+    return studentExamsHtml(identity);
+  }
+
+  function studentIdentifyHtml() {
+    var rostered = STATE.roster.length > 0;
+    var nameField = rostered
+      ? "" // the name comes from the roster entry, not typed here — see the "identify" form handler
+      : '<div class="field"><label for="f-name">Name</label><input id="f-name" name="name" type="text" required autocomplete="name" placeholder="e.g. Jane Doe"></div>';
+    var intro = rostered
+      ? '<p class="sub">Enter the student ID your instructor gave you &mdash; your name will be filled in automatically.</p>'
+      : '<p class="sub">Your name and student ID are saved on this device &mdash; return with the same ID and your past scores will still be here.</p>';
+    return (
+      '<div class="pagehead"><p class="eyebrow">Student</p><h1>First, tell us who you are</h1>' +
+      intro +
+      '<p class="sub" style="margin-top:6px">Before you start: make sure you have an internet connection, or your answers won&#39;t be saved.</p></div>' +
+      '<div class="card"><form data-form="identify" class="stack">' +
+      nameField +
+      '<div class="field"><label for="f-sid">Student ID</label><input id="f-sid" name="studentId" type="text" required autocomplete="off" placeholder="e.g. 20261234"></div>' +
+      (identifyError ? '<div class="banner banner-warn">' + esc(identifyError) + "</div>" : "") +
+      '<button type="submit" class="btn btn-primary btn-block">Continue</button>' +
+      "</form></div>"
+    );
+  }
+
+  function studentNoCourseHtml(identity) {
+    return (
+      '<div class="pagehead"><p class="eyebrow">' + esc(identity.name) + " &middot; " + esc(identity.studentId) + '</p><h1>Not set up yet</h1>' +
+      '<p class="sub"><a href="#" data-action="editIdentity">Change your info</a></p></div>' +
+      '<div class="empty"><p>Your instructor hasn&#39;t set up this course yet.</p><p>Check back once they have.</p></div>'
+    );
+  }
+
+  function studentExamsHtml(identity) {
+    var course = theCourse();
+    if (!course) return studentNoCourseHtml(identity);
+    var exams = examsForCourse(course.id).filter(isExamOpen);
+    var rows = exams.map(function (ex) {
+      var sub = submissionFor(ex.id, identity.studentId);
+      var right = sub
+        ? '<div class="badge badge-good">Submitted ' + sub.score + "/" + sub.max + "</div>"
+        : '<div class="badge badge-accent">Available</div>';
+      var qn = ex.questions.length;
+      var deadlineNote = ex.deadline ? " &middot; Closes " + esc(fmtDate(ex.deadline)) : "";
+      return (
+        '<div class="ledger-row clickable" data-action="' + (sub ? "reviewExam" : "startExam") + '" data-id="' + esc(ex.id) + '">' +
+        '<div><div class="title">' + esc(ex.title) + "</div>" +
+        '<div class="meta">' + qn + (qn === 1 ? " question" : " questions") + " &middot; " + examMax(ex) + " pts total" + deadlineNote + "</div></div>" +
+        right + "</div>"
+      );
+    }).join("");
+    return (
+      '<div class="pagehead"><p class="eyebrow">' + esc(identity.name) + " &middot; " + esc(identity.studentId) + '</p><h1>' + esc(course.name) + "</h1>" +
+      '<p class="sub"><a href="#" data-action="editIdentity">Change your info</a></p></div>' +
+      (exams.length
+        ? '<div class="card"><div class="ledger">' + rows + "</div></div>"
+        : '<div class="empty"><p>No exams are open right now.</p></div>')
+    );
+  }
+
+  function examMax(ex) { return ex.questions.reduce(function (s, q) { return s + (Number(q.points) || 0); }, 0); }
+
+  function studentTakeHtml(identity) {
+    var ex = examById(UI.studentExamId);
+    if (!ex) { UI.screen = "exams"; return studentExamsHtml(identity); }
+    if (submissionFor(ex.id, identity.studentId)) { UI.screen = "result"; return studentResultHtml(identity); }
+    if (!isExamOpen(ex)) {
+      return (
+        '<div class="pagehead"><p class="eyebrow"><a href="#" data-action="backToExams">&larr; ' + esc(theCourse() ? theCourse().name : "") + '</a></p><h1>' + esc(ex.title) + "</h1></div>" +
+        '<div class="empty"><p>This exam&#39;s deadline has passed, so it can no longer be submitted.</p></div>'
+      );
+    }
+    var qs = ex.questions.map(function (q, i) {
+      var body;
+      if (q.type === "mc") {
+        var letters = ["A", "B", "C", "D", "E", "F"];
+        body = '<div class="opts">' + q.options.map(function (opt, oi) {
+          return (
+            '<label class="opt"><input type="radio" name="ans_' + esc(q.id) + '" value="' + oi + '" data-bind="answer" data-qid="' + esc(q.id) + '">' +
+            '<span class="letter">' + (letters[oi] || oi + 1) + "</span><span>" + esc(opt) + "</span></label>"
+          );
+        }).join("") + "</div>";
+      } else {
+        body = '<input type="text" data-bind="answer" data-qid="' + esc(q.id) + '" placeholder="Type your answer" autocomplete="off">';
+      }
+      var pts = Number(q.points) || 0;
+      return (
+        '<div class="qcard"><div class="qnum">Question ' + (i + 1) + " &middot; " + pts + (pts === 1 ? " pt" : " pts") + "</div>" +
+        '<div class="qtext">' + esc(q.text) + "</div>" + body + "</div>"
+      );
+    }).join("");
+    return (
+      '<div class="pagehead"><p class="eyebrow"><a href="#" data-action="backToExams">&larr; ' + esc(theCourse() ? theCourse().name : "") + '</a></p>' +
+      "<h1>" + esc(ex.title) + "</h1><p class=\"sub\">Answer every question, then submit. You won&#39;t be able to retake this exam.</p></div>" +
+      '<div class="card">' + qs +
+      '<div style="margin-top:16px"><button type="button" class="btn btn-primary btn-block" data-action="submitExam">Submit</button></div></div>'
+    );
+  }
+
+  function studentResultHtml(identity) {
+    var ex = examById(UI.studentExamId);
+    if (!ex) { UI.screen = "exams"; return studentExamsHtml(identity); }
+    // Prefer the synced copy from the shared database whenever it's arrived —
+    // it reflects anything the instructor has since done (an overridden
+    // score, in particular). LOCAL_RESULT is only the optimistic stand-in
+    // shown for the moment right after "Submit," before that first sync lands.
+    var synced = submissionFor(ex.id, identity.studentId);
+    var sub = synced || (LOCAL_RESULT && LOCAL_RESULT.examId === ex.id ? LOCAL_RESULT : null);
+    if (!sub) { UI.screen = "exams"; return studentExamsHtml(identity); }
+    var pct = sub.max > 0 ? Math.round((sub.score / sub.max) * 100) : 0;
+    var rows = ex.questions.map(function (q, i) {
+      var d = sub.detail.filter(function (x) { return x.qid === q.id; })[0] || { correct: false, given: "" };
+      var givenText = q.type === "mc" ? (q.options[d.given] != null ? q.options[d.given] : "(no answer)") : (d.given || "(no answer)");
+      return (
+        '<div class="qreview ' + (d.correct ? "correct" : "wrong") + '">' +
+        '<div class="mark">' + (d.correct ? "Correct" : "Incorrect") + "</div>" +
+        '<div><div>' + (i + 1) + ". " + esc(q.text) + "</div>" +
+        '<div class="ans">You answered: ' + esc(givenText) + "</div></div></div>"
+      );
+    }).join('<hr class="divider">');
+    // Proven recorded once the synced copy has arrived. Before that, this is
+    // only the optimistic LOCAL_RESULT — confirmed only if no failure banner
+    // showed up for it (an "unavailable"/"readonly"/"error" banner means the
+    // write behind it never landed).
+    var saved = !!synced || (UI.banner !== "unavailable" && UI.banner !== "readonly" && UI.banner !== "error");
+    return (
+      '<div class="pagehead"><p class="eyebrow"><a href="#" data-action="backToExams">&larr; Exam list</a></p><h1>' + esc(ex.title) + "</h1></div>" +
+      '<div class="card scoreplate"><div class="num">' + sub.score + '<span class="frac"> / ' + sub.max + "</span></div>" +
+      '<div class="pct">' + pct + "% &middot; " + esc(identity.name) + " (" + esc(identity.studentId) + ")</div></div>" +
+      '<div class="card" style="margin-top:14px">' + rows + "</div>" +
+      resultSaveNoticeHtml(saved) +
+      '<div class="row" style="margin-top:14px">' +
+      '<button type="button" class="btn btn-primary" data-action="finishExam">Finish &amp; close</button>' +
+      '<button type="button" class="btn btn-ghost" data-action="printResult">Print result</button>' +
+      "</div>"
+    );
+  }
+
+  function resultSaveNoticeHtml(saved) {
+    if (saved) return "";
+    return (
+      '<div class="banner banner-warn" style="margin-top:14px">' +
+      "Your score couldn&#39;t be recorded to the Gradebook just now, so your instructor won&#39;t see it yet. " +
+      "Reload this page and, if the exam is still open, submit again — or show this screen to your instructor." +
+      "</div>"
+    );
+  }
+
+  function studentDoneHtml() {
+    return (
+      '<div class="card" style="text-align:center;padding:48px 24px">' +
+      '<p class="eyebrow">All done</p>' +
+      "<h1 style=\"font-size:1.4rem\">You're finished</h1>" +
+      '<p class="sub" style="margin:10px auto 0;max-width:40ch">Your exam has been submitted and scored. You can close this tab now, or come back any time to take another exam.</p>' +
+      '<button type="button" class="btn btn-primary" style="margin-top:18px" data-action="backToExams">Take another exam</button>' +
+      "</div>"
+    );
+  }
+
+  /* ===== teacher ===== */
+  function teacherViewHtml() {
+    if (!UI.teacherAuthed) return teacherGateHtml();
+    if (DB_STATUS === "loading") return '<div class="pagehead"><p class="eyebrow">Instructor</p><h1>Loading&hellip;</h1></div>';
+    if (!theCourse()) return teacherSetUpCourseHtml();
+    if (!UI.teacherTab) UI.teacherTab = "exams";
+    var tabs =
+      '<div class="tabs">' +
+      '<button type="button" data-action="teacherTab" data-tab="exams" class="' + (UI.teacherTab === "exams" ? "active" : "") + '">Exams</button>' +
+      '<button type="button" data-action="teacherTab" data-tab="scores" class="' + (UI.teacherTab === "scores" ? "active" : "") + '">Scores</button>' +
+      '<button type="button" data-action="teacherTab" data-tab="roster" class="' + (UI.teacherTab === "roster" ? "active" : "") + '">Roster</button>' +
+      "</div>";
+    var content = UI.teacherTab === "scores" ? teacherScoresHtml() : UI.teacherTab === "roster" ? teacherRosterHtml() : teacherExamsHtml();
+    var course = theCourse();
+    var courseLine = UI.editingCourse
+      ? renameCourseFormHtml(course)
+      : '<p class="sub">' + esc(course.name) + (course.code ? " &middot; " + esc(course.code) : "") +
+        ' &middot; <a href="#" data-action="editCourse">Edit</a></p>';
+    return '<div class="pagehead"><p class="eyebrow">Instructor</p><h1>Exams &middot; Scores</h1>' + courseLine + "</div>" + tabs + content;
+  }
+
+  function teacherGateHtml() {
+    var checking = UI.teacherGateChecking;
+    var error = UI.teacherGateError;
+    return (
+      '<div class="pagehead"><p class="eyebrow">Instructor only</p><h1>Enter the instructor password</h1>' +
+      '<p class="sub">Whoever set up this Gradebook chose this password when they deployed it.</p></div>' +
+      '<div class="card">' +
+      (error ? '<div class="banner banner-warn" style="margin-bottom:16px">' + esc(error) + "</div>" : "") +
+      '<form data-form="teacherGate" class="grid2">' +
+      '<div class="field" style="grid-column:1/-1"><label for="t-pw">Password</label><input id="t-pw" name="password" type="password" required autofocus></div>' +
+      '<div style="grid-column:1/-1"><button type="submit" class="btn btn-primary"' + (checking ? " disabled" : "") + ">" +
+      (checking ? "Checking&hellip;" : "Continue") +
+      "</button></div>" +
+      "</form></div>"
+    );
+  }
+
+  function teacherSetUpCourseHtml() {
+    return (
+      '<div class="pagehead"><p class="eyebrow">Instructor</p><h1>Set up your course</h1>' +
+      '<p class="sub">This platform runs one course at a time. Name it once, then get straight to exams.</p></div>' +
+      '<div class="card"><form data-form="setUpCourse" class="grid2">' +
+      '<div class="field"><label for="c-name">Course name</label><input id="c-name" name="name" type="text" required placeholder="e.g. Intro to Data Structures"></div>' +
+      '<div class="field"><label for="c-code">Course code (optional)</label><input id="c-code" name="code" type="text" placeholder="e.g. CS201-01"></div>' +
+      '<div style="grid-column:1/-1"><button type="submit" class="btn btn-primary">Save &amp; continue</button></div>' +
+      "</form></div>"
+    );
+  }
+
+  function renameCourseFormHtml(course) {
+    return (
+      '<form data-form="renameCourse" class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap">' +
+      '<input name="name" type="text" required value="' + esc(course.name) + '" placeholder="Course name" style="width:auto;flex:1 1 200px">' +
+      '<input name="code" type="text" value="' + esc(course.code || "") + '" placeholder="Course code (optional)" style="width:auto;flex:1 1 160px">' +
+      '<button type="submit" class="btn btn-sm btn-primary">Save</button>' +
+      '<button type="button" class="btn btn-sm btn-ghost" data-action="cancelEditCourse">Cancel</button>' +
+      "</form>"
+    );
+  }
+
+  function teacherExamsHtml() {
+    var cid = theCourse().id;
+    UI.teacherCourseId = cid;
+    var exams = examsForCourse(cid);
+    var rows = exams.map(function (ex) {
+      var armed = confirmArm === "exam:" + ex.id;
+      var n = submissionsForExam(ex.id).length;
+      var qn = ex.questions.length;
+      var effectivelyOpen = isExamOpen(ex);
+      var deadlinePassed = ex.status === "open" && ex.deadline && !effectivelyOpen;
+      return (
+        '<div class="ledger-row" style="flex-direction:column;align-items:stretch;gap:10px">' +
+        '<div class="row between">' +
+        '<div><div class="title">' + esc(ex.title) + "</div>" +
+        '<div class="meta">' + qn + (qn === 1 ? " question" : " questions") + " &middot; " + n + (n === 1 ? " submission" : " submissions") + "</div></div>" +
+        '<div class="row">' +
+        '<span class="badge ' + (effectivelyOpen ? "badge-good" : "badge-pending") + '">' + (effectivelyOpen ? "Open" : deadlinePassed ? "Closed — deadline passed" : "Closed") + "</span>" +
+        '<button type="button" class="btn btn-sm btn-ghost" data-action="toggleExamStatus" data-id="' + esc(ex.id) + '">' + (effectivelyOpen ? "Close" : "Reopen") + "</button>" +
+        '<button type="button" class="btn btn-sm ' + (armed ? "btn-danger" : "btn-ghost") + '" data-action="deleteExam" data-id="' + esc(ex.id) + '">' + (armed ? "Confirm" : "Delete") + "</button>" +
+        "</div></div>" +
+        '<form class="row" data-form="setDeadline" data-examid="' + esc(ex.id) + '" style="gap:8px">' +
+        '<label class="footnote" for="dl-' + esc(ex.id) + '" style="margin:0">Closing deadline</label>' +
+        '<input id="dl-' + esc(ex.id) + '" type="datetime-local" name="deadline" value="' + esc(toDatetimeLocalValue(ex.deadline)) + '" style="width:auto;flex:0 0 auto">' +
+        '<button type="submit" class="btn btn-sm btn-ghost">' + (ex.deadline ? "Update" : "Set") + "</button>" +
+        (ex.deadline ? '<button type="button" class="btn btn-sm btn-ghost" data-action="clearDeadline" data-id="' + esc(ex.id) + '">Clear</button>' : "") +
+        "</form>" +
+        "</div>"
+      );
+    }).join("");
+    if (!DRAFT) DRAFT = freshDraft();
+    var builderSection;
+    if (savedExamNotice && savedExamNotice.courseId === cid) {
+      builderSection =
+        '<div class="card" style="margin-top:14px">' +
+        '<p class="eyebrow">Saved</p>' +
+        '<h2 style="font-size:1rem;margin-bottom:6px">&#8220;' + esc(savedExamNotice.title) + '&#8221; is saved and open to students.</h2>' +
+        '<p class="sub" style="margin-bottom:14px">Upload or write another exam now, or come back to it later — it stays open until you close it' + (savedExamNotice.hasDeadline ? " or its deadline passes" : "") + '.</p>' +
+        '<div class="row" style="gap:8px">' +
+        '<button type="button" class="btn btn-primary" data-action="openExamBuilder">Add another exam now</button>' +
+        '<button type="button" class="btn btn-ghost" data-action="dismissSavedExam">Done for now</button>' +
+        "</div></div>";
+    } else if (UI.builderOpen === false) {
+      builderSection =
+        '<div class="card" style="margin-top:14px">' +
+        '<button type="button" class="btn btn-primary" data-action="openExamBuilder">+ Add a new exam</button>' +
+        "</div>";
+    } else {
+      builderSection =
+        '<div class="card" style="margin-top:14px"><h2 style="font-size:1rem;margin-bottom:12px">Create a new exam</h2>' +
+        '<div class="tabs" style="margin-bottom:16px">' +
+        '<button type="button" data-action="builderMode" data-mode="manual" class="' + (DRAFT.mode === "manual" ? "active" : "") + '">Write manually</button>' +
+        '<button type="button" data-action="builderMode" data-mode="upload" class="' + (DRAFT.mode === "upload" ? "active" : "") + '">Upload Word doc</button>' +
+        "</div>" +
+        (DRAFT.mode === "upload" ? examBuilderUploadHtml() : examBuilderManualHtml()) +
+        "</div>";
+    }
+    return (
+      '<div class="card">' +
+      '<h2 style="font-size:1rem;margin-bottom:8px">Exams</h2>' +
+      (rows ? '<div class="ledger">' + rows + "</div>" : '<div class="empty"><p>No exams yet.</p></div>') +
+      "</div>" +
+      builderSection
+    );
+  }
+
+  function answerKeyBoxHtml(mode) {
+    return (
+      '<div class="field" style="margin-top:6px">' +
+      '<label for="ak-' + mode + '">Answer key (optional)</label>' +
+      '<textarea id="ak-' + mode + '" data-bind="answerkey" placeholder="1. B&#10;2. A&#10;3. mitochondria&#10;&#10;or one line: 1-B, 2-A, 3-mitochondria" style="min-height:90px">' + esc(DRAFT.answerKeyText || "") + "</textarea>" +
+      '<p class="footnote">The question number, then the correct answer — a letter (A, B, C…) for multiple choice, or the answer text for short answer. One per line, or all on one line separated by commas (e.g. "1-A, 2-B, 3-D"). Separate accepted short-answer alternatives with |. Applying overwrites any answers already marked above.</p>' +
+      '<button type="button" class="btn btn-sm btn-ghost" data-action="applyAnswerKey" data-mode="' + mode + '">Apply answer key</button>' +
+      (answerKeyMsg ? '<p class="footnote" style="margin-top:6px">' + esc(answerKeyMsg) + "</p>" : "") +
+      "</div>"
+    );
+  }
+
+  function examBuilderManualHtml() {
+    var qs = DRAFT.questions.map(function (q, i) {
+      var typeSel =
+        '<select data-bind="qtype" data-qid="' + q.id + '">' +
+        '<option value="mc"' + (q.type === "mc" ? " selected" : "") + ">Multiple choice</option>" +
+        '<option value="short"' + (q.type === "short" ? " selected" : "") + ">Short answer</option>" +
+        "</select>";
+      var body;
+      if (q.type === "mc") {
+        var letters = ["A", "B", "C", "D"];
+        body = q.options.map(function (opt, oi) {
+          return (
+            '<div class="optrow"><span class="letter">' + letters[oi] + '</span>' +
+            '<input type="radio" name="correct_' + q.id + '" value="' + oi + '"' + (q.answerIndex === oi ? " checked" : "") + ' data-bind="qcorrect" data-qid="' + q.id + '">' +
+            '<input type="text" value="' + esc(opt) + '" data-bind="qoption" data-qid="' + q.id + '" data-oi="' + oi + '" placeholder="Option ' + letters[oi] + '">' +
+            "</div>"
+          );
+        }).join("") + '<p class="footnote">Use the radio button to mark the correct answer.</p>';
+      } else {
+        body =
+          '<div class="field" style="margin-top:8px"><label>Answer (separate multiple accepted answers with |)</label>' +
+          '<input type="text" value="' + esc(q.answerText) + '" data-bind="qanswertext" data-qid="' + q.id + '" placeholder="e.g. H2O | water"></div>';
+      }
+      return (
+        '<div class="qdraft"><div class="row between">' +
+        '<strong style="font-family:var(--font-mono);font-size:0.78rem;color:var(--ink-faint)">Question ' + (i + 1) + "</strong>" +
+        '<div class="row" style="gap:8px">' + typeSel +
+        '<input type="number" min="0" step="1" value="' + q.points + '" data-bind="qpoints" data-qid="' + q.id + '" style="width:70px" title="Points">' +
+        (DRAFT.questions.length > 1 ? '<button type="button" class="btn btn-sm btn-ghost" data-action="removeQ" data-qid="' + q.id + '">Remove</button>' : "") +
+        "</div></div>" +
+        '<textarea data-bind="qtext" data-qid="' + q.id + '" placeholder="Type the question" style="margin-top:8px">' + esc(q.text) + "</textarea>" +
+        body + "</div>"
+      );
+    }).join("");
+    return (
+      '<form data-form="saveManualExam" class="stack">' +
+      '<div class="field"><label for="e-title">Exam title</label><input id="e-title" name="title" type="text" required value="' + esc(DRAFT.title) + '" data-bind="etitle" placeholder="e.g. Week 3 quiz"></div>' +
+      '<div class="field"><label for="e-deadline">Closing deadline (optional)</label><input id="e-deadline" name="deadline" type="datetime-local"><p class="footnote">Leave blank to close it manually later. Students lose access to the exam once this time passes.</p></div>' +
+      qs +
+      answerKeyBoxHtml("manual") +
+      (manualError ? '<div class="banner banner-warn">' + esc(manualError) + "</div>" : "") +
+      '<button type="button" class="btn btn-ghost" data-action="addQ">+ Add question</button>' +
+      '<button type="submit" class="btn btn-primary">Save &amp; publish exam</button>' +
+      "</form>"
+    );
+  }
+
+  function examBuilderUploadHtml() {
+    var preview = "";
+    if (DRAFT.questions && DRAFT.mode === "upload" && DRAFT._parsed) {
+      preview = '<div class="stack" style="margin-top:14px">' + DRAFT._parsed.map(function (q, i) {
+        var ansShown = q.type === "mc" ? "Answer: " + (["A", "B", "C", "D"][q.answerIndex] || "?") : "Answer: " + q.answerText;
+        return (
+          '<div class="qdraft"><div class="row between">' +
+          '<strong style="font-family:var(--font-mono);font-size:0.78rem;color:var(--ink-faint)">Question ' + (i + 1) + " &middot; " + (q.type === "mc" ? "Multiple choice" : "Short answer") + " &middot; " + q.points + (q.points === 1 ? " pt</strong>" : " pts</strong>") +
+          '<button type="button" class="btn btn-sm btn-ghost" data-action="removeParsedQ" data-idx="' + i + '">Remove</button></div>' +
+          '<div style="margin-top:6px">' + esc(q.text) + "</div>" +
+          (q.options.length ? '<div class="footnote">' + q.options.map(function(o,oi){return ["A","B","C","D"][oi]+". "+esc(o);}).join(" &nbsp; ") + "</div>" : "") +
+          '<div class="footnote" style="margin-top:4px">' + esc(ansShown) + "</div></div>"
+        );
+      }).join("") + "</div>";
+    }
+    return (
+      '<div class="dropzone">' +
+      '<p><strong>Upload an MS Word (.docx) file.</strong></p>' +
+      '<p class="footnote">Questions, options, and answers must follow the format below to be recognized automatically.</p>' +
+      '<input type="file" accept=".docx" data-action="uploadDocx" style="margin-top:10px">' +
+      "</div>" +
+      (uploadError ? '<div class="banner banner-warn" style="margin-top:12px">' + esc(uploadError) + "</div>" : "") +
+      '<p style="margin-top:12px"><a href="#" data-action="toggleTemplate">View format guide</a> &middot; <a href="#" data-action="downloadTemplate">Download example format (.txt)</a></p>' +
+      (UI.showTemplate ? "<pre class=\"template\">" + esc(DOCX_TEMPLATE_TXT) + "</pre>" : "") +
+      preview +
+      (DRAFT._parsed && DRAFT._parsed.length ? answerKeyBoxHtml("upload") : "") +
+      (DRAFT._parsed && DRAFT._parsed.length
+        ? '<form data-form="saveUploadExam" class="stack" style="margin-top:16px">' +
+          '<div class="field"><label for="e-title2">Exam title</label><input id="e-title2" name="title" type="text" required value="' + esc(DRAFT.title) + '" data-bind="etitle" placeholder="e.g. Week 3 quiz"></div>' +
+          '<div class="field"><label for="e-deadline2">Closing deadline (optional)</label><input id="e-deadline2" name="deadline" type="datetime-local"><p class="footnote">Leave blank to close it manually later. Students lose access to the exam once this time passes.</p></div>' +
+          '<button type="submit" class="btn btn-primary">Save &amp; publish this exam</button></form>'
+        : "")
+    );
+  }
+
+  function examScoreTableHtml(ex) {
+    var subs = submissionsForExam(ex.id).slice().sort(function (a, b) { return a.studentId < b.studentId ? -1 : 1; });
+    var rows = subs.map(function (s) {
+      var pct = s.max > 0 ? Math.round((s.score / s.max) * 100) : 0;
+      return (
+        "<tr><td>" + esc(s.studentId) + "</td><td>" + esc(s.studentName) + '</td><td class="num">' + s.score + " / " + s.max + '</td><td class="num">' + pct + "%</td><td>" + esc(fmtDate(s.submittedAt)) + '</td>' +
+        '<td><form data-form="overrideScore" data-subid="' + esc(s.id) + '" style="display:flex;gap:6px"><input type="number" name="score" value="' + s.score + '" min="0" max="' + s.max + '" style="width:64px"><button type="submit" class="btn btn-sm btn-ghost">Save</button></form></td></tr>'
+      );
+    }).join("");
+    return (
+      '<div class="tablewrap" style="margin-top:12px"><table class="scores"><thead><tr><th>Student ID</th><th>Name</th><th class="num">Score</th><th class="num">Percent</th><th>Submitted</th><th>Edit score</th></tr></thead>' +
+      "<tbody>" + (rows || '<tr><td colspan="6" style="text-align:center;color:var(--ink-faint)">No submissions yet.</td></tr>') + "</tbody></table></div>" +
+      '<div class="row" style="margin-top:10px"><button type="button" class="btn btn-sm btn-ghost" data-action="exportCsv" data-id="' + esc(ex.id) + '">Export CSV</button>' +
+      '<span class="footnote">' + subs.length + (subs.length === 1 ? " submission" : " submissions") + " &middot; average " + (subs.length ? Math.round(subs.reduce(function (a, s) { return a + (s.max ? s.score / s.max : 0); }, 0) / subs.length * 100) : 0) + "%</span></div>"
+    );
+  }
+
+  // Every exam in the course, used by both the Total pivot view and the CSV
+  // export so they never disagree with each other.
+  function scoreScopeExams() {
+    var c = theCourse();
+    var examsInScope = c ? examsForCourse(c.id).map(function (ex) { return { ex: ex, course: c }; }) : [];
+    return { examsInScope: examsInScope };
+  }
+
+  // Every student who submitted any exam in `examsInScope`, plus a lookup of
+  // that student's submission per exam (missing = not attempted).
+  function scoreScopeStudents(examsInScope) {
+    var studentMap = {};
+    var subsByExam = {};
+    examsInScope.forEach(function (item) {
+      var m = {};
+      submissionsForExam(item.ex.id).forEach(function (s) {
+        m[s.studentId] = s;
+        if (!studentMap[s.studentId]) studentMap[s.studentId] = { studentId: s.studentId, studentName: s.studentName };
+      });
+      subsByExam[item.ex.id] = m;
+    });
+    var students = Object.keys(studentMap).map(function (k) { return studentMap[k]; })
+      .sort(function (a, b) { return a.studentId < b.studentId ? -1 : 1; });
+    return { students: students, subsByExam: subsByExam };
+  }
+
+  // Each exam's cell is that student's PERCENT score on it (0-100, comparable
+  // across exams with different point totals) — matching a plain gradebook
+  // grid of Student Name / ID / one percent-score column per exam.
+  function examPercent(sub) {
+    return sub.max > 0 ? Math.round((sub.score / sub.max) * 100) : 0;
+  }
+
+  function totalScoreTableHtml(examsInScope) {
+    var data = scoreScopeStudents(examsInScope);
+    var examHeaders = examsInScope.map(function (item) {
+      return '<th class="num">' + esc(item.ex.title) + "</th>";
+    }).join("");
+    var rows = data.students.map(function (st) {
+      var totalScore = 0, totalMax = 0, taken = 0;
+      var cells = examsInScope.map(function (item) {
+        var sub = data.subsByExam[item.ex.id][st.studentId];
+        if (!sub) return '<td class="num" style="color:var(--ink-faint)">—</td>';
+        totalScore += sub.score; totalMax += sub.max; taken++;
+        return '<td class="num">' + examPercent(sub) + "</td>";
+      }).join("");
+      var overallPct = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+      return (
+        "<tr><td>" + esc(st.studentName) + "</td><td>" + esc(st.studentId) + "</td>" + cells +
+        '<td class="num"><strong>' + totalScore + " / " + totalMax + '</strong></td><td class="num">' + overallPct + '%</td><td class="num">' + taken + "/" + examsInScope.length + "</td></tr>"
+      );
+    }).join("");
+    return (
+      '<div class="card" style="margin-top:14px">' +
+      '<h2 style="font-size:1rem;margin-bottom:8px">Total across ' + examsInScope.length + (examsInScope.length === 1 ? " exam" : " exams") + "</h2>" +
+      '<p class="footnote" style="margin-bottom:8px">Each exam column shows the student\'s percent score on it.</p>' +
+      '<div class="tablewrap"><table class="scores"><thead><tr><th>Student Name</th><th>ID</th>' + examHeaders +
+      '<th class="num">Total</th><th class="num">Overall %</th><th class="num">Exams taken</th></tr></thead>' +
+      "<tbody>" + (rows || '<tr><td colspan="' + (5 + examsInScope.length) + '" style="text-align:center;color:var(--ink-faint)">No submissions yet.</td></tr>') + "</tbody></table></div>" +
+      (rows ? '<div class="row" style="margin-top:10px"><button type="button" class="btn btn-ghost" data-action="exportTotalCsv">Export CSV</button></div>' : "") +
+      "</div>"
+    );
+  }
+
+  function teacherScoresHtml() {
+    var scope = scoreScopeExams();
+
+    var selectedExam = UI.scoresView
+      ? scope.examsInScope.filter(function (item) { return item.ex.id === UI.scoresView; })[0]
+      : null;
+
+    var viewSelect = "";
+    if (scope.examsInScope.length) {
+      var viewOpts =
+        '<option value=""' + (!selectedExam ? " selected" : "") + '>Total (all exams)</option>' +
+        scope.examsInScope.map(function (item) {
+          return '<option value="' + esc(item.ex.id) + '"' + (selectedExam === item ? " selected" : "") + ">" + esc(item.ex.title) + "</option>";
+        }).join("");
+      viewSelect =
+        '<div class="field" style="max-width:340px"><label for="sel-view-scores">View</label>' +
+        '<select id="sel-view-scores" data-action="selectScoreView">' + viewOpts + "</select></div>";
+    }
+
+    var body;
+    if (!scope.examsInScope.length) {
+      body = '<div class="empty" style="margin-top:14px"><p>No exams yet.</p></div>';
+    } else if (selectedExam) {
+      body =
+        '<div class="card" style="margin-top:14px">' +
+        '<h2 style="font-size:1rem">' + esc(selectedExam.ex.title) + "</h2>" +
+        examScoreTableHtml(selectedExam.ex) +
+        "</div>";
+    } else {
+      body = totalScoreTableHtml(scope.examsInScope);
+    }
+
+    return (
+      (viewSelect ? '<div class="card"><div class="row" style="align-items:flex-end;gap:16px;flex-wrap:wrap">' + viewSelect + "</div></div>" : "") +
+      body
+    );
+  }
+
+  function teacherRosterHtml() {
+    var roster = STATE.roster.slice().sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+    var rows = roster.map(function (r) {
+      var armed = confirmArm === "roster:" + r.id;
+      return (
+        '<tr><td>' + esc(r.name) + "</td><td>" + esc(r.studentId) + '</td>' +
+        '<td style="text-align:right"><button type="button" class="btn btn-sm ' + (armed ? "btn-danger" : "btn-ghost") + '" data-action="removeRosterEntry" data-id="' + esc(r.id) + '">' + (armed ? "Confirm" : "Remove") + "</button></td></tr>"
+      );
+    }).join("");
+    var table = roster.length
+      ? '<div class="tablewrap" style="margin-top:14px"><table class="scores"><thead><tr><th>Name</th><th>Student ID</th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>"
+      : '<div class="empty" style="margin-top:14px"><p>No students registered yet. Once you add some, only their IDs will be able to identify themselves as a student below.</p></div>';
+    return (
+      '<div class="card" style="margin-top:14px">' +
+      '<h2 style="font-size:1rem;margin-bottom:6px">Register students</h2>' +
+      '<p class="sub" style="margin-bottom:14px">Optional. Add students here and a name + student ID will only be accepted below if the ID matches &mdash; the name is filled in from this list, not typed by the student. Leave this empty and students can identify themselves freely, as before.</p>' +
+      '<form data-form="addRoster" class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">' +
+      '<div class="field" style="width:auto;flex:1 1 200px"><label for="r-name">Name</label><input id="r-name" name="name" type="text" required placeholder="e.g. Jane Doe"></div>' +
+      '<div class="field" style="width:auto;flex:1 1 160px"><label for="r-sid">Student ID</label><input id="r-sid" name="studentId" type="text" required placeholder="e.g. 20261234"></div>' +
+      '<button type="submit" class="btn btn-primary">Add</button>' +
+      "</form>" +
+      '<details><summary style="cursor:pointer;font-size:0.85rem;color:var(--ink-soft)">Paste a whole class list instead</summary>' +
+      '<form data-form="bulkAddRoster" class="stack" style="margin-top:10px">' +
+      '<div class="field"><label for="r-bulk">One student per line: name, then student ID &mdash; separated by a comma or tab (pasting straight from a spreadsheet column pair works)</label>' +
+      '<textarea id="r-bulk" name="bulk" rows="6" placeholder="Jane Doe, 20261234&#10;John Smith, 20265678"></textarea></div>' +
+      (rosterUploadError ? '<div class="banner banner-warn">' + esc(rosterUploadError) + "</div>" : "") +
+      (rosterUploadMsg ? '<p class="footnote">' + esc(rosterUploadMsg) + "</p>" : "") +
+      '<button type="submit" class="btn btn-primary" style="align-self:flex-start">Add all</button>' +
+      "</form></details>" +
+      table
+    );
+  }
+
+  /* ---------------- actions that need computation before dispatch ---------------- */
+  function doSubmitExam() {
+    var identity = getIdentity();
+    var ex = examById(UI.studentExamId);
+    if (!identity || !ex) return;
+    if (submissionFor(ex.id, identity.studentId)) { UI.screen = "result"; render(); return; }
+    if (!isExamOpen(ex)) { render(); return; } // studentTakeHtml now shows the "deadline passed" message
+    var graded = scoreSubmission(ex, ANSWERS);
+    var submission = {
+      id: submissionDocId(ex.id, identity.studentId), examId: ex.id, studentId: identity.studentId, studentName: identity.name,
+      answers: clone(ANSWERS), score: graded.score, max: graded.max, detail: graded.detail,
+      submittedAt: new Date().toISOString()
+    };
+    LOCAL_RESULT = submission;
+    UI.screen = "result";
+    render();
+    applyAction({ type: "submitExam", submission: submission });
+  }
+
+  function doFinishExam() {
+    // window.close() only works on tabs/windows the page itself opened, so most
+    // browsers silently ignore it here — show a clear "safe to close" screen either way.
+    UI.screen = "done";
+    render();
+    try { window.close(); } catch (e) {}
+    setTimeout(function () { try { window.close(); } catch (e) {} }, 50);
+  }
+
+  // The score is already saved centrally the moment it's computed (or, on
+  // failure, resultSaveNoticeHtml already says so) — "Print result" is just
+  // a receipt for the student's own records, via the browser's own print
+  // dialog (save-as-PDF works the same way), not a save mechanism.
+  function doPrintResult() {
+    window.print();
+  }
+
+  function doExportCsv(examId) {
+    var ex = examById(examId);
+    if (!ex) return;
+    var subs = submissionsForExam(ex.id);
+    var head = ["Student ID", "Name", "Score", "Max", "Percent", "Submitted"].map(csvEscape).join(",");
+    var rows = subs.map(function (s) {
+      var pct = s.max ? Math.round((s.score / s.max) * 100) : 0;
+      return [s.studentId, s.studentName, s.score, s.max, pct, fmtDate(s.submittedAt)].map(csvEscape).join(",");
+    });
+    var csv = "﻿" + [head].concat(rows).join("\r\n");
+    var base = "scores_" + ex.title;
+    saveFile_(base + ".csv", csv, "text/csv");
+  }
+
+  function doExportTotalCsv() {
+    var scope = scoreScopeExams();
+    if (!scope.examsInScope.length) return;
+    var data = scoreScopeStudents(scope.examsInScope);
+    if (!data.students.length) return;
+    var examLabels = scope.examsInScope.map(function (item) { return item.ex.title; });
+    var head = ["Student Name", "ID"].concat(examLabels).concat(["Total Score", "Total Max", "Overall %", "Exams Taken"]).map(csvEscape).join(",");
+    var rows = data.students.map(function (st) {
+      var totalScore = 0, totalMax = 0, taken = 0;
+      var cells = scope.examsInScope.map(function (item) {
+        var sub = data.subsByExam[item.ex.id][st.studentId];
+        if (!sub) return "";
+        totalScore += sub.score; totalMax += sub.max; taken++;
+        return examPercent(sub);
+      });
+      var pct = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+      return [st.studentName, st.studentId].concat(cells).concat([totalScore, totalMax, pct, taken + "/" + scope.examsInScope.length]).map(csvEscape).join(",");
+    });
+    var csv = "﻿" + [head].concat(rows).join("\r\n");
+    var base = theCourse() ? "totals_" + theCourse().name : "totals_all";
+    saveFile_(base + ".csv", csv, "text/csv");
+  }
+
+  function doDownloadTemplate() {
+    saveFile_("gradebook_exam_format.txt", DOCX_TEMPLATE_TXT, "text/plain");
+  }
+
+  // Plain browser download — no platform capability needed on a standalone
+  // page. Works the same for every modern browser without a save-confirm dialog.
+  function saveFile_(filename, data, mime) {
+    var blob = new Blob([data], { type: mime + ";charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function handleUploadDocx(file) {
+    if (!file) return;
+    uploadError = "";
+    answerKeyMsg = "";
+    extractDocxParagraphs(file).then(function (lines) {
+      var qs = parseQuestionsFromLines(lines);
+      if (!qs.length) {
+        uploadError = "Couldn't recognize any questions. Check the format guide below and upload again.";
+        DRAFT._parsed = null;
+        render();
+        return;
+      }
+      DRAFT._parsed = qs;
+      render();
+    }).catch(function (err) {
+      var msg = "Something went wrong reading the file. Check the format and try again.";
+      var code = err && err.message;
+      if (code === "EMPTY_FILE") msg = "That file is empty (0 bytes). If it's stored in OneDrive, Google Drive, or Dropbox, make sure it's fully downloaded to this device (not just an online-only placeholder) and try again.";
+      else if (code === "LEGACY_DOC") msg = "This looks like an old .doc file (Word 97-2003 format) that was renamed to .docx rather than actually saved as one. Open it in Word and use \"Save As\" → Word Document (.docx), then upload that file.";
+      else if (code === "NOT_DOCX" || code === "NO_DOCUMENT_XML" || code === "ZIP_NOT_FOUND") msg = "This doesn't look like a .docx file. In Word, use \"Save As → .docx\" and upload that file.";
+      else if (code === "NO_DECOMPRESSION_STREAM") msg = "This browser can't read Word files directly. Try the latest version of Chrome, Edge, or Safari.";
+      uploadError = msg;
+      DRAFT._parsed = null;
+      render();
+    });
+  }
+
+  /* ---------------- event delegation ---------------- */
+  function bindEvents() {
+    var app = document.getElementById("app");
+
+    app.addEventListener("click", function (e) {
+      var t = e.target.closest("[data-action]");
+      if (!t) return;
+      if (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA") return;
+      var action = t.getAttribute("data-action");
+      var id = t.getAttribute("data-id");
+      e.preventDefault();
+
+      var confirmKey = null;
+      if (action === "deleteExam") confirmKey = "exam:" + id;
+      if (action === "removeRosterEntry") confirmKey = "roster:" + id;
+      if (confirmKey && confirmArm !== confirmKey) {
+        confirmArm = confirmKey;
+        render();
+        return;
+      }
+
+      switch (action) {
+        case "switchRole":
+          UI.role = t.getAttribute("data-role");
+          // "done" is a dead-end shown right after finishing an exam — stepping
+          // back into the Student view (even to the same role) should always
+          // land on the exam list, never get stuck re-showing "You're finished".
+          if (UI.role === "student" && (!UI.screen || UI.screen === "done")) UI.screen = "exams";
+          gateError = "";
+          render();
+          break;
+        case "hardReload":
+          location.reload();
+          break;
+        case "editIdentity":
+          clearIdentity();
+          UI.screen = "exams";
+          render();
+          break;
+        case "startExam":
+          UI.studentExamId = id;
+          UI.screen = "take";
+          ANSWERS = {};
+          LOCAL_RESULT = null;
+          render();
+          break;
+        case "reviewExam":
+          UI.studentExamId = id;
+          UI.screen = "result";
+          LOCAL_RESULT = null;
+          render();
+          break;
+        case "backToExams":
+          UI.screen = "exams";
+          render();
+          break;
+        case "submitExam":
+          doSubmitExam();
+          break;
+        case "printResult":
+          doPrintResult();
+          break;
+        case "finishExam":
+          doFinishExam();
+          break;
+        case "teacherTab":
+          UI.teacherTab = t.getAttribute("data-tab");
+          confirmArm = null;
+          savedExamNotice = null;
+          rosterUploadMsg = "";
+          rosterUploadError = "";
+          render();
+          break;
+        case "removeRosterEntry":
+          applyAction({ type: "removeRosterEntry", docId: id });
+          confirmArm = null;
+          break;
+        case "editCourse":
+          UI.editingCourse = true;
+          render();
+          break;
+        case "cancelEditCourse":
+          UI.editingCourse = false;
+          render();
+          break;
+        case "openExamBuilder":
+          UI.builderOpen = true;
+          savedExamNotice = null;
+          if (!DRAFT) DRAFT = freshDraft();
+          render();
+          break;
+        case "dismissSavedExam":
+          UI.builderOpen = false;
+          savedExamNotice = null;
+          render();
+          break;
+        case "deleteExam":
+          applyAction({ type: "deleteExam", examId: id });
+          confirmArm = null;
+          break;
+        case "toggleExamStatus": {
+          var exToggle = examById(id);
+          if (exToggle) {
+            if (isExamOpen(exToggle)) {
+              applyAction({ type: "setExamStatus", examId: id, status: "closed" });
+            } else {
+              // Reopening also clears any past deadline — otherwise it would look
+              // reopened but still read as closed to students until a new one is set.
+              applyAction({ type: "reopenExam", examId: id });
+            }
+          }
+          break;
+        }
+        case "clearDeadline":
+          applyAction({ type: "setExamDeadline", examId: id, deadline: null });
+          break;
+        case "builderMode":
+          if (!DRAFT) DRAFT = freshDraft();
+          DRAFT.mode = t.getAttribute("data-mode");
+          uploadError = "";
+          answerKeyMsg = "";
+          render();
+          break;
+        case "applyAnswerKey": {
+          var akMode = t.getAttribute("data-mode");
+          var akQuestions = akMode === "upload" ? (DRAFT._parsed || []) : DRAFT.questions;
+          if (!akQuestions.length) { answerKeyMsg = "Add questions first, then apply the key."; render(); break; }
+          var akResult = applyAnswerKey(akQuestions, DRAFT.answerKeyText || "");
+          if (!akResult.keyCount) {
+            answerKeyMsg = "No answer lines recognized — start each line with the question number, e.g. \"1. B\".";
+          } else {
+            answerKeyMsg = "Applied " + akResult.applied + " of " + akResult.keyCount + " answer key line" + (akResult.keyCount === 1 ? "" : "s") + (akResult.applied < akResult.keyCount ? " — the rest didn't match a question number or option." : ".");
+          }
+          render();
+          break;
+        }
+        case "addQ":
+          DRAFT.questions.push(freshQDraft());
+          render();
+          break;
+        case "removeQ":
+          DRAFT.questions = DRAFT.questions.filter(function (q) { return q.id !== t.getAttribute("data-qid"); });
+          render();
+          break;
+        case "removeParsedQ": {
+          var idx = parseInt(t.getAttribute("data-idx"), 10);
+          if (DRAFT._parsed) DRAFT._parsed.splice(idx, 1);
+          render();
+          break;
+        }
+        case "toggleTemplate":
+          UI.showTemplate = !UI.showTemplate;
+          render();
+          break;
+        case "downloadTemplate":
+          doDownloadTemplate();
+          break;
+        case "exportCsv":
+          doExportCsv(id);
+          break;
+        case "exportTotalCsv":
+          doExportTotalCsv();
+          break;
+        default:
+          break;
+      }
+
+      if (!confirmKey && confirmArm) { confirmArm = null; }
+    });
+
+    app.addEventListener("change", function (e) {
+      var t = e.target;
+      if (t.matches && t.matches('[data-action="selectScoreView"]')) {
+        UI.scoresView = t.value || "";
+        render();
+        return;
+      }
+      if (t.matches && t.matches('[data-action="uploadDocx"]')) {
+        handleUploadDocx(t.files && t.files[0]);
+        return;
+      }
+      var bind = t.getAttribute("data-bind");
+      if (!bind) return;
+      var qid = t.getAttribute("data-qid");
+      if (bind === "answer") { ANSWERS[qid] = t.value; return; }
+      if (bind === "qtype") {
+        var q = DRAFT.questions.filter(function (x) { return x.id === qid; })[0];
+        if (q) { q.type = t.value; render(); }
+        return;
+      }
+      if (bind === "qcorrect") {
+        var q2 = DRAFT.questions.filter(function (x) { return x.id === qid; })[0];
+        if (q2) q2.answerIndex = parseInt(t.value, 10);
+        return;
+      }
+    });
+
+    app.addEventListener("input", function (e) {
+      var t = e.target;
+      var bind = t.getAttribute("data-bind");
+      if (!bind) return;
+      var qid = t.getAttribute("data-qid");
+      if (bind === "answer") { ANSWERS[qid] = t.value; return; }
+      if (bind === "etitle") { if (DRAFT) DRAFT.title = t.value; return; }
+      if (bind === "qtext") { var q = DRAFT.questions.filter(function (x) { return x.id === qid; })[0]; if (q) q.text = t.value; return; }
+      if (bind === "qoption") {
+        var oi = parseInt(t.getAttribute("data-oi"), 10);
+        var q2 = DRAFT.questions.filter(function (x) { return x.id === qid; })[0];
+        if (q2) q2.options[oi] = t.value;
+        return;
+      }
+      if (bind === "qanswertext") { var q3 = DRAFT.questions.filter(function (x) { return x.id === qid; })[0]; if (q3) q3.answerText = t.value; return; }
+      if (bind === "qpoints") { var q4 = DRAFT.questions.filter(function (x) { return x.id === qid; })[0]; if (q4) q4.points = parseInt(t.value, 10) || 0; return; }
+      if (bind === "answerkey") { DRAFT.answerKeyText = t.value; return; }
+    });
+
+    app.addEventListener("submit", function (e) {
+      var form = e.target.closest ? e.target.closest("[data-form]") : null;
+      if (!form) return;
+      e.preventDefault();
+      var kind = form.getAttribute("data-form");
+      var fd = new FormData(form);
+
+      if (kind === "teacherGate") {
+        var pw = String(fd.get("password") || "");
+        if (!pw) return;
+        submitTeacherPassword(pw);
+      } else if (kind === "identify") {
+        var sid = String(fd.get("studentId") || "").trim();
+        if (!sid) return;
+        if (STATE.roster.length) {
+          // A roster is in use: the ID has to be on it, and the name is
+          // whatever the instructor registered — not whatever gets typed —
+          // so a student can't submit under a different name than the roster.
+          var entry = rosterEntryFor(sid);
+          if (!entry) {
+            identifyError = "That student ID isn't on your instructor's roster. Double-check it, or check with your instructor.";
+            render();
+            return;
+          }
+          identifyError = "";
+          setIdentity(entry.name, sid);
+          UI.screen = "exams";
+          render();
+          return;
+        }
+        var name = String(fd.get("name") || "").trim();
+        if (!name) return;
+        identifyError = "";
+        setIdentity(name, sid);
+        UI.screen = "exams";
+        render();
+      } else if (kind === "addRoster") {
+        var rName = String(fd.get("name") || "").trim();
+        var rSid = String(fd.get("studentId") || "").trim();
+        if (!rName || !rSid) return;
+        form.reset();
+        applyAction({ type: "addRosterEntries", entries: [{ studentId: rSid, name: rName }] });
+      } else if (kind === "bulkAddRoster") {
+        var raw = String(fd.get("bulk") || "");
+        var lines = raw.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+        var entries = [];
+        var skipped = 0;
+        lines.forEach(function (line) {
+          var parts = line.split(/\t|,/).map(function (p) { return p.trim(); }).filter(Boolean);
+          if (parts.length < 2) { skipped++; return; }
+          // Whichever of the two columns looks like an ID (has a digit) is
+          // the ID; the pasted order (name-first or ID-first) doesn't matter.
+          var a = parts[0], b = parts[1];
+          var aLooksId = /\d/.test(a), bLooksId = /\d/.test(b);
+          var studentId = bLooksId || !aLooksId ? b : a;
+          var rname2 = studentId === b ? a : b;
+          if (!studentId || !rname2) { skipped++; return; }
+          entries.push({ studentId: studentId, name: rname2 });
+        });
+        if (!entries.length) {
+          rosterUploadError = "Couldn't find any valid \"name, ID\" lines to add.";
+          rosterUploadMsg = "";
+          render();
+          return;
+        }
+        rosterUploadError = "";
+        rosterUploadMsg = "Added " + entries.length + " student" + (entries.length === 1 ? "" : "s") + (skipped ? " (" + skipped + " line" + (skipped === 1 ? "" : "s") + " skipped)" : "") + ".";
+        form.reset();
+        applyAction({ type: "addRosterEntries", entries: entries });
+      } else if (kind === "setUpCourse") {
+        var cname = String(fd.get("name") || "").trim();
+        if (!cname) return;
+        var course = { id: genId("c"), name: cname, code: String(fd.get("code") || "").trim() };
+        applyAction({ type: "setUpCourse", course: course });
+      } else if (kind === "renameCourse") {
+        var rname = String(fd.get("name") || "").trim();
+        if (!rname) return;
+        UI.editingCourse = false;
+        applyAction({ type: "renameCourse", name: rname, code: String(fd.get("code") || "").trim() });
+      } else if (kind === "saveManualExam") {
+        var title = String(fd.get("title") || "").trim();
+        var qs = [];
+        var valid = !!title;
+        DRAFT.questions.forEach(function (q) {
+          var qq = { id: q.id, type: q.type, text: String(q.text || "").trim(), points: Number(q.points) || 0 };
+          if (!qq.text) valid = false;
+          if (q.type === "mc") {
+            qq.options = q.options.map(function (o) { return String(o || "").trim(); });
+            if (qq.options.filter(Boolean).length < 2) valid = false;
+            qq.answerIndex = q.answerIndex;
+          } else {
+            qq.answerText = String(q.answerText || "").trim();
+            if (!qq.answerText) valid = false;
+          }
+          qs.push(qq);
+        });
+        if (!valid || !qs.length) {
+          manualError = "Please check your questions — every question needs text and a valid answer (multiple choice needs at least 2 filled-in options).";
+          render();
+          return;
+        }
+        manualError = "";
+        var deadline1 = datetimeLocalToIso(fd.get("deadline"));
+        var exam = { id: genId("e"), courseId: UI.teacherCourseId, title: title, status: "open", deadline: deadline1, questions: qs, createdAt: new Date().toISOString() };
+        DRAFT = freshDraft();
+        answerKeyMsg = "";
+        savedExamNotice = { title: title, courseId: UI.teacherCourseId, hasDeadline: !!deadline1 };
+        UI.builderOpen = false;
+        applyAction({ type: "addExam", exam: exam });
+      } else if (kind === "saveUploadExam") {
+        var title2 = String(fd.get("title") || "").trim();
+        if (!title2 || !DRAFT._parsed || !DRAFT._parsed.length) return;
+        var deadline2 = datetimeLocalToIso(fd.get("deadline"));
+        var exam2 = { id: genId("e"), courseId: UI.teacherCourseId, title: title2, status: "open", deadline: deadline2, questions: DRAFT._parsed, createdAt: new Date().toISOString() };
+        DRAFT = freshDraft();
+        answerKeyMsg = "";
+        savedExamNotice = { title: title2, courseId: UI.teacherCourseId, hasDeadline: !!deadline2 };
+        UI.builderOpen = false;
+        applyAction({ type: "addExam", exam: exam2 });
+      } else if (kind === "overrideScore") {
+        var subId = form.getAttribute("data-subid");
+        var score = Number(fd.get("score"));
+        if (!isNaN(score)) applyAction({ type: "overrideScore", subId: subId, score: score });
+      } else if (kind === "setDeadline") {
+        var examIdD = form.getAttribute("data-examid");
+        var deadlineD = datetimeLocalToIso(fd.get("deadline"));
+        if (!deadlineD) return;
+        applyAction({ type: "setExamDeadline", examId: examIdD, deadline: deadlineD });
+      }
+    });
+  }
+
+  /* ---------------- startup ---------------- */
+  function init() {
+    bindEvents();
+    render();
+    subscribeDb();
+    // A restored "Instructor" tab keeps its cached password (sessionStorage)
+    // across a reload — no live re-check needed here, since every real write
+    // is checked server-side anyway (see applyAction's bad_password handling).
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
