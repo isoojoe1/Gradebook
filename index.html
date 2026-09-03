@@ -248,7 +248,7 @@
 
   // Paste the Apps Script Web App URL here (Deploy -> New deployment -> Web
   // app -> copy the URL ending in /exec). Nothing works until this is set.
-  var API_URL = "https://script.google.com/macros/s/AKfycbxW05AvCm42kkhHYVtYTVXV3Tivy-6YoGK9V1QkX-dNA4tNB4QTi4s2bC4F47ir7aJE/exec";
+  var API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
   var POLL_MS = 4000; // how often every open page re-checks the sheet for changes
 
   /* ---------------- state ---------------- */
@@ -604,6 +604,14 @@
   // just how state changes arrive.
   var DB_STATUS = "loading"; // "loading" | "ready" | "unavailable"
   var pollTimer = null;
+  // The last state we actually rendered, as JSON — every poll tick calls
+  // render() again (a full innerHTML rebuild), and doing that unconditionally
+  // every POLL_MS would wipe out whatever the viewer is mid-typing (a
+  // password, an answer, an exam title) even when nothing on the sheet has
+  // changed. Skipping the render when the fetched state is byte-for-byte the
+  // same as last time — which is most polls, most of the time — is what
+  // keeps typing usable on a polling architecture.
+  var lastStateJson = null;
 
   function applyStateSnapshot_(state) {
     STATE.courses = state.courses || [];
@@ -612,19 +620,62 @@
     STATE.roster = state.roster || [];
   }
 
-  function pollState() {
-    fetch(API_URL + "?action=getState&_=" + Date.now())
-      .then(function (r) { return r.json(); })
-      .then(function (state) {
-        DB_STATUS = "ready";
-        if (UI.banner === "unavailable") UI.banner = null;
-        applyStateSnapshot_(state);
-        render();
-      }, function () {
-        DB_STATUS = "unavailable";
-        if (!UI.banner) UI.banner = "unavailable";
-        render();
+  // Apps Script Web App responses come back through a one-time redirect to
+  // script.googleusercontent.com, and that redirect doesn't carry an
+  // Access-Control-Allow-Origin header — so fetch()/XHR calls made from a
+  // page hosted anywhere other than script.google.com itself (GitHub Pages
+  // included) get blocked by the browser's CORS check, even though the
+  // request succeeds on the server. A <script> tag isn't subject to that
+  // check, which is exactly why JSONP was invented — so every call to
+  // Apps Script here, reads and writes alike, goes through a <script> tag
+  // rather than fetch(). See the matching comment above doGet in Code.gs.
+  var __jsonpSeq = 0;
+  function jsonpCall_(params) {
+    return new Promise(function (resolve, reject) {
+      var cbName = "__gbcb" + (__jsonpSeq++) + "_" + Math.random().toString(36).slice(2);
+      var settled = false;
+      var script = document.createElement("script");
+      var timer = setTimeout(function () { finish(reject, new Error("timeout")); }, 15000);
+      function cleanup() {
+        clearTimeout(timer);
+        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+        if (script.parentNode) script.parentNode.removeChild(script);
+      }
+      function finish(fn, val) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn(val);
+      }
+      window[cbName] = function (data) { finish(resolve, data); };
+      script.onerror = function () { finish(reject, new Error("jsonp load error")); };
+      var qs = ["callback=" + encodeURIComponent(cbName)];
+      Object.keys(params).forEach(function (k) {
+        if (params[k] === undefined) return;
+        qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(params[k]));
       });
+      script.src = API_URL + "?" + qs.join("&");
+      document.head.appendChild(script);
+    });
+  }
+
+  function pollState() {
+    jsonpCall_({ action: "getState", _: Date.now() }).then(function (state) {
+      var json = JSON.stringify(state);
+      var wasNotReady = DB_STATUS !== "ready";
+      var bannerToClear = UI.banner === "unavailable";
+      DB_STATUS = "ready";
+      if (bannerToClear) UI.banner = null;
+      if (json === lastStateJson && !wasNotReady && !bannerToClear) return;
+      lastStateJson = json;
+      applyStateSnapshot_(state);
+      render();
+    }, function () {
+      var wasReady = DB_STATUS !== "unavailable";
+      DB_STATUS = "unavailable";
+      if (!UI.banner) UI.banner = "unavailable";
+      if (wasReady) render();
+    });
   }
 
   function subscribeDb() {
@@ -642,16 +693,9 @@
   };
 
   function postAction_(action, payload, password) {
-    var body = { action: action, payload: payload || {} };
-    if (password !== undefined) body.password = password;
-    return fetch(API_URL, {
-      method: "POST",
-      // text/plain (not application/json) on purpose: it keeps this a
-      // "simple request" so the browser skips the CORS preflight (OPTIONS)
-      // that Apps Script Web Apps don't answer.
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(body)
-    }).then(function (r) { return r.json(); });
+    var params = { action: action, payload: JSON.stringify(payload || {}) };
+    if (password !== undefined) params.password = password;
+    return jsonpCall_(params);
   }
 
   // A submission's id is deterministic (exam + student), not random: a
@@ -1774,7 +1818,13 @@
         rosterUploadError = "";
         rosterUploadMsg = "Added " + entries.length + " student" + (entries.length === 1 ? "" : "s") + (skipped ? " (" + skipped + " line" + (skipped === 1 ? "" : "s") + " skipped)" : "") + ".";
         form.reset();
-        applyAction({ type: "addRosterEntries", entries: entries });
+        // Sent in chunks, not one giant call — every request here rides in a
+        // URL query string (see the JSONP comment above), which has a
+        // practical length limit a very large pasted roster could exceed.
+        var ROSTER_CHUNK = 40;
+        for (var ri = 0; ri < entries.length; ri += ROSTER_CHUNK) {
+          applyAction({ type: "addRosterEntries", entries: entries.slice(ri, ri + ROSTER_CHUNK) });
+        }
       } else if (kind === "setUpCourse") {
         var cname = String(fd.get("name") || "").trim();
         if (!cname) return;
