@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -690,7 +689,8 @@
   // decides who's allowed to write, it just finds out when a write fails.
   var TEACHER_ACTIONS = {
     setUpCourse: 1, renameCourse: 1, addExam: 1, setExamStatus: 1, setExamDeadline: 1,
-    reopenExam: 1, deleteExam: 1, overrideScore: 1, addRosterEntries: 1, removeRosterEntry: 1
+    reopenExam: 1, deleteExam: 1, overrideScore: 1, addRosterEntries: 1, removeRosterEntry: 1,
+    removeSubmission: 1
   };
 
   function postAction_(action, payload, password) {
@@ -1269,14 +1269,17 @@
     var subs = submissionsForExam(ex.id).slice().sort(function (a, b) { return a.studentId < b.studentId ? -1 : 1; });
     var rows = subs.map(function (s) {
       var pct = s.max > 0 ? Math.round((s.score / s.max) * 100) : 0;
+      var armed = confirmArm === "sub:" + s.id;
       return (
         "<tr><td>" + esc(s.studentId) + "</td><td>" + esc(s.studentName) + '</td><td class="num">' + s.score + " / " + s.max + '</td><td class="num">' + pct + "%</td><td>" + esc(fmtDate(s.submittedAt)) + '</td>' +
-        '<td><form data-form="overrideScore" data-subid="' + esc(s.id) + '" style="display:flex;gap:6px"><input type="number" name="score" value="' + s.score + '" min="0" max="' + s.max + '" style="width:64px"><button type="submit" class="btn btn-sm btn-ghost">Save</button></form></td></tr>'
+        '<td><form data-form="overrideScore" data-subid="' + esc(s.id) + '" style="display:flex;gap:6px"><input type="number" name="score" value="' + s.score + '" min="0" max="' + s.max + '" style="width:64px"><button type="submit" class="btn btn-sm btn-ghost">Save</button></form></td>' +
+        '<td><button type="button" class="btn btn-sm ' + (armed ? "btn-danger" : "btn-ghost") + '" data-action="removeSubmission" data-id="' + esc(s.id) + '">' + (armed ? "Confirm" : "Remove") + "</button></td></tr>"
       );
     }).join("");
     return (
-      '<div class="tablewrap" style="margin-top:12px"><table class="scores"><thead><tr><th>Student ID</th><th>Name</th><th class="num">Score</th><th class="num">Percent</th><th>Submitted</th><th>Edit score</th></tr></thead>' +
-      "<tbody>" + (rows || '<tr><td colspan="6" style="text-align:center;color:var(--ink-faint)">No submissions yet.</td></tr>') + "</tbody></table></div>" +
+      '<div class="tablewrap" style="margin-top:12px"><table class="scores"><thead><tr><th>Student ID</th><th>Name</th><th class="num">Score</th><th class="num">Percent</th><th>Submitted</th><th>Edit score</th><th>Remove</th></tr></thead>' +
+      "<tbody>" + (rows || '<tr><td colspan="7" style="text-align:center;color:var(--ink-faint)">No submissions yet.</td></tr>') + "</tbody></table></div>" +
+      '<p class="footnote" style="margin-top:8px">Removing a submission deletes it completely — the student\'s slot opens up again, so if the exam is still open they can retake it and get a fresh score.</p>' +
       '<div class="row" style="margin-top:10px"><button type="button" class="btn btn-sm btn-ghost" data-action="exportCsv" data-id="' + esc(ex.id) + '">Export CSV</button>' +
       '<span class="footnote">' + subs.length + (subs.length === 1 ? " submission" : " submissions") + " &middot; average " + (subs.length ? Math.round(subs.reduce(function (a, s) { return a + (s.max ? s.score / s.max : 0); }, 0) / subs.length * 100) : 0) + "%</span></div>"
     );
@@ -1550,6 +1553,7 @@
       var confirmKey = null;
       if (action === "deleteExam") confirmKey = "exam:" + id;
       if (action === "removeRosterEntry") confirmKey = "roster:" + id;
+      if (action === "removeSubmission") confirmKey = "sub:" + id;
       if (confirmKey && confirmArm !== confirmKey) {
         confirmArm = confirmKey;
         render();
@@ -1610,6 +1614,10 @@
           break;
         case "removeRosterEntry":
           applyAction({ type: "removeRosterEntry", docId: id });
+          confirmArm = null;
+          break;
+        case "removeSubmission":
+          applyAction({ type: "removeSubmission", subId: id });
           confirmArm = null;
           break;
         case "editCourse":
