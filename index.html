@@ -669,6 +669,13 @@
       if (json === lastStateJson && !wasNotReady && !bannerToClear) return;
       lastStateJson = json;
       applyStateSnapshot_(state);
+      // FIX: while a student is in the middle of an exam, don't rebuild the
+      // page just because someone else submitted — that re-render was wiping
+      // the answers on their screen. Only redraw if this exam closed or vanished.
+      if (UI.role === "student" && UI.screen === "take") {
+        var takingEx = examById(UI.studentExamId);
+        if (takingEx && isExamOpen(takingEx)) return;
+      }
       render();
     }, function () {
       var wasReady = DB_STATUS !== "unavailable";
@@ -964,12 +971,12 @@
         var letters = ["A", "B", "C", "D", "E", "F"];
         body = '<div class="opts">' + q.options.map(function (opt, oi) {
           return (
-            '<label class="opt"><input type="radio" name="ans_' + esc(q.id) + '" value="' + oi + '" data-bind="answer" data-qid="' + esc(q.id) + '">' +
+            '<label class="opt"><input type="radio" name="ans_' + esc(q.id) + '" value="' + oi + '"' + (String(ANSWERS[q.id]) === String(oi) ? " checked" : "") + ' data-bind="answer" data-qid="' + esc(q.id) + '">' +
             '<span class="letter">' + (letters[oi] || oi + 1) + "</span><span>" + esc(opt) + "</span></label>"
           );
         }).join("") + "</div>";
       } else {
-        body = '<input type="text" data-bind="answer" data-qid="' + esc(q.id) + '" placeholder="Type your answer" autocomplete="off">';
+        body = '<input type="text" data-bind="answer" data-qid="' + esc(q.id) + '" value="' + esc(ANSWERS[q.id] || "") + '" placeholder="Type your answer" autocomplete="off">';
       }
       var pts = Number(q.points) || 0;
       return (
