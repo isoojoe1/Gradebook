@@ -197,6 +197,10 @@
   .qcard:last-of-type { border-bottom: none; }
   .qnum { font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-strong); letter-spacing: 0.05em; margin-bottom: 6px; }
   .qtext { font-weight: 600; margin-bottom: 10px; }
+  .qtablewrap { overflow-x: auto; margin: 10px 0; }
+  table.qtable { border-collapse: collapse; font-size: 0.9rem; font-weight: 400; min-width: 50%; }
+  table.qtable th, table.qtable td { border: 1px solid var(--line); padding: 6px 12px; text-align: left; vertical-align: top; }
+  table.qtable thead th { background: var(--paper-sunken); font-weight: 600; }
   .opts { display: flex; flex-direction: column; gap: 8px; }
   .opt { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line-strong); border-radius: 7px; cursor: pointer; }
   .opt:hover { border-color: var(--accent); }
@@ -432,7 +436,6 @@
         var xmlText = new TextDecoder("utf-8").decode(xmlBytes);
         var xmlDoc = new DOMParser().parseFromString(xmlText, "application/xml");
         if (xmlDoc.getElementsByTagName("parsererror").length) throw new Error("XML_PARSE_ERROR");
-        var paras = xmlDoc.getElementsByTagName("w:p");
         var lines = [];
         // Word's "Numbering" list button (and its auto-numbering when you type
         // "1." and it auto-formats) never writes the visible "1." into the
@@ -446,11 +449,20 @@
         var autoQNum = 0;
         var autoOptLetter = 0;
         var OPT_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
-        for (var pI = 0; pI < paras.length; pI++) {
-          var ts = paras[pI].getElementsByTagName("w:t");
+        function paraText(p) {
+          var ts = p.getElementsByTagName("w:t");
           var text = "";
           for (var tI = 0; tI < ts.length; tI++) text += ts[tI].textContent;
-          var numPrs = paras[pI].getElementsByTagName("w:numPr");
+          return text;
+        }
+        function childEls(el, name) {
+          var out = [];
+          for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 1 && c.nodeName === name) out.push(c);
+          return out;
+        }
+        function handlePara(p) {
+          var text = paraText(p);
+          var numPrs = p.getElementsByTagName("w:numPr");
           if (numPrs.length && text.trim()) {
             var ilvlEls = numPrs[0].getElementsByTagName("w:ilvl");
             var ilvlAttr = ilvlEls.length ? ilvlEls[0].getAttribute("w:val") : null;
@@ -467,6 +479,40 @@
           }
           lines.push(text);
         }
+        // A Word table becomes ONE entry in `lines` — an object, not a
+        // string — holding its rows and cells. Before this, the table's cells
+        // were read as ordinary paragraphs, so the grid fell apart into loose
+        // lines of text (and a cell starting with a number could even be
+        // mistaken for a new question).
+        function handleTable(tbl) {
+          var rows = [];
+          childEls(tbl, "w:tr").forEach(function (tr) {
+            var cells = [];
+            childEls(tr, "w:tc").forEach(function (tc) {
+              var parts = [];
+              var ps = tc.getElementsByTagName("w:p");
+              for (var i = 0; i < ps.length; i++) { var t = paraText(ps[i]).trim(); if (t) parts.push(t); }
+              var span = 1;
+              var gs = tc.getElementsByTagName("w:gridSpan");
+              if (gs.length) span = parseInt(gs[0].getAttribute("w:val"), 10) || 1;
+              cells.push(span > 1 ? { t: parts.join(" "), span: span } : parts.join(" "));
+            });
+            if (cells.length) rows.push(cells);
+          });
+          if (rows.length) lines.push({ table: rows });
+        }
+        // Walk the body in document order so each table lands between the
+        // paragraphs it actually sits between.
+        function walk(el) {
+          for (var c = el.firstChild; c; c = c.nextSibling) {
+            if (c.nodeType !== 1) continue;
+            if (c.nodeName === "w:p") handlePara(c);
+            else if (c.nodeName === "w:tbl") handleTable(c);
+            else walk(c); // e.g. content controls (w:sdt > w:sdtContent)
+          }
+        }
+        var bodies = xmlDoc.getElementsByTagName("w:body");
+        walk(bodies.length ? bodies[0] : xmlDoc.documentElement);
         return lines;
       });
     });
@@ -496,6 +542,15 @@
     }
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
+      if (line && typeof line === "object" && line.table) {
+        // at = how much of the question text comes before the table, so it
+        // is shown in the same place it had in the Word file.
+        // Same rule as extra text lines: only tables that come before the
+        // options/answer belong to the question (so an answer-key table at
+        // the end of the file isn't glued onto the last question).
+        if (cur && cur.options.length === 0 && !cur.answerRaw) (cur.tables = cur.tables || []).push({ at: cur.text.length, rows: line.table });
+        continue;
+      }
       if (!line || !line.trim()) continue;
       var qm = line.match(qRe);
       if (qm) {
@@ -953,6 +1008,36 @@
     );
   }
 
+  // Question text with any tables from the Word file drawn in place.
+  function qTableHtml(rows) {
+    function cell(tag, c) {
+      var text = typeof c === "object" && c ? c.t : c;
+      var span = typeof c === "object" && c && c.span > 1 ? ' colspan="' + (parseInt(c.span, 10) || 1) + '"' : "";
+      return "<" + tag + span + ">" + esc(text) + "</" + tag + ">";
+    }
+    var head = rows[0], body = rows.slice(1);
+    return '<div class="qtablewrap"><table class="qtable"><thead><tr>' +
+      head.map(function (c) { return cell("th", c); }).join("") + "</tr></thead><tbody>" +
+      body.map(function (r) { return "<tr>" + r.map(function (c) { return cell("td", c); }).join("") + "</tr>"; }).join("") +
+      "</tbody></table></div>";
+  }
+  function qTextHtml(q) {
+    var text = String(q.text || "");
+    var tables = (q.tables || []).filter(function (t) { return t && t.rows && t.rows.length; });
+    if (!tables.length) return esc(text);
+    var out = "", pos = 0;
+    tables.slice().sort(function (a, b) { return a.at - b.at; }).forEach(function (t) {
+      var at = Math.max(pos, Math.min(text.length, Number(t.at) || 0));
+      var before = text.slice(pos, at).trim();
+      if (before) out += "<div>" + esc(before) + "</div>";
+      out += qTableHtml(t.rows);
+      pos = at;
+    });
+    var rest = text.slice(pos).trim();
+    if (rest) out += "<div>" + esc(rest) + "</div>";
+    return out;
+  }
+
   function examMax(ex) { return ex.questions.reduce(function (s, q) { return s + (Number(q.points) || 0); }, 0); }
 
   function studentTakeHtml(identity) {
@@ -981,7 +1066,7 @@
       var pts = Number(q.points) || 0;
       return (
         '<div class="qcard"><div class="qnum">Question ' + (i + 1) + " &middot; " + pts + (pts === 1 ? " pt" : " pts") + "</div>" +
-        '<div class="qtext">' + esc(q.text) + "</div>" + body + "</div>"
+        '<div class="qtext">' + qTextHtml(q) + "</div>" + body + "</div>"
       );
     }).join("");
     return (
@@ -1009,7 +1094,7 @@
       return (
         '<div class="qreview ' + (d.correct ? "correct" : "wrong") + '">' +
         '<div class="mark">' + (d.correct ? "Correct" : "Incorrect") + "</div>" +
-        '<div><div>' + (i + 1) + ". " + esc(q.text) + "</div>" +
+        '<div><div>' + (i + 1) + ". " + qTextHtml(q) + "</div>" +
         '<div class="ans">You answered: ' + esc(givenText) + "</div></div></div>"
       );
     }).join('<hr class="divider">');
@@ -1246,7 +1331,7 @@
           '<div class="qdraft"><div class="row between">' +
           '<strong style="font-family:var(--font-mono);font-size:0.78rem;color:var(--ink-faint)">Question ' + (i + 1) + " &middot; " + (q.type === "mc" ? "Multiple choice" : "Short answer") + " &middot; " + q.points + (q.points === 1 ? " pt</strong>" : " pts</strong>") +
           '<button type="button" class="btn btn-sm btn-ghost" data-action="removeParsedQ" data-idx="' + i + '">Remove</button></div>' +
-          '<div style="margin-top:6px">' + esc(q.text) + "</div>" +
+          '<div style="margin-top:6px">' + qTextHtml(q) + "</div>" +
           (q.options.length ? '<div class="footnote">' + q.options.map(function(o,oi){return ["A","B","C","D"][oi]+". "+esc(o);}).join(" &nbsp; ") + "</div>" : "") +
           '<div class="footnote" style="margin-top:4px">' + esc(ansShown) + "</div></div>"
         );
