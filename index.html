@@ -236,7 +236,24 @@
   code, .kbd { font-family: var(--font-mono); background: var(--paper-sunken); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font-size: 0.85em; }
   pre.template { font-family: var(--font-mono); font-size: 0.8rem; background: var(--paper-sunken); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; line-height: 1.6; }
 
+  /* Leaving-the-quiz warning: a full-screen dialog that sits above everything. */
+  .leave-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    background: rgba(20, 26, 32, 0.78);
+  }
+  .leave-overlay[hidden] { display: none; }
+  .leave-dialog {
+    width: 100%; max-width: 460px; text-align: center;
+    background: var(--paper-raised); border: 2px solid var(--bad); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 28px 24px;
+  }
+  .leave-dialog .eyebrow { color: var(--bad); }
+  .leave-dialog h2 { font-size: 1.3rem; color: var(--bad); }
+  .leave-dialog p.sub { color: var(--ink-soft); margin: 12px 0 20px; }
+
   @media print {
+    .leave-overlay { display: none !important; }
     .topbar, .banner, .row form, button, a[data-action] { display: none !important; }
     body { background: #fff; }
     .shell { max-width: none; }
@@ -673,6 +690,9 @@
     STATE.exams = state.exams || [];
     STATE.submissions = state.submissions || [];
     STATE.roster = state.roster || [];
+    // An auto-submitted quiz that has now shown up on the sheet is confirmed.
+    var pendingForced = getPendingForced();
+    if (pendingForced && submissionFor(pendingForced.examId, pendingForced.studentId)) clearPendingForced();
   }
 
   // Apps Script Web App responses come back through a one-time redirect to
@@ -724,6 +744,7 @@
       if (json === lastStateJson && !wasNotReady && !bannerToClear) return;
       lastStateJson = json;
       applyStateSnapshot_(state);
+      retryPendingForced_();
       // FIX: while a student is in the middle of an exam, don't rebuild the
       // page just because someone else submitted — that re-render was wiping
       // the answers on their screen. Only redraw if this exam closed or vanished.
@@ -885,6 +906,196 @@
     return { id: genId("q"), type: "mc", text: "", options: ["", "", "", ""], answerIndex: 0, answerText: "", points: 1 };
   }
 
+  /* ---------------- leaving the quiz (anti-cheating guard) ---------------- */
+  // While a student has a quiz open, leaving the quiz page counts as a
+  // "leave": switching to another tab, window or app, minimizing the browser,
+  // or navigating/reloading this tab. A webpage can't see WHAT was opened —
+  // only that the student is no longer on the quiz. The first leave shows a
+  // warning; the second submits the quiz on the spot with the answers so far.
+  var LEAVE_WARNING_TEXT = "Do not open another site while taking a quiz.";
+  // Focus moving off the page while it's still on screen (another window
+  // beside it, the address bar) only counts once it has lasted this long, so
+  // a stray click outside the page isn't treated as leaving.
+  var LEAVE_BLUR_GRACE_MS = 1000;
+  var LEAVE_MEM = {};        // fallback copy when localStorage is unavailable
+  var leaveAway = false;     // true from the moment a leave is counted until the student is back
+  var leaveBlurTimer = null;
+  var FORCED_EXAM_ID = null; // exam that was auto-submitted in this visit (for the notice on the result screen)
+
+  // The count lives in localStorage (not just in memory) so reloading or
+  // reopening the page doesn't hand the student a fresh warning.
+  function leaveKey(examId, studentId) { return "gradebook_leave_" + submissionDocId(examId, studentId); }
+  function getLeave(examId, studentId) {
+    var k = leaveKey(examId, studentId);
+    try {
+      var raw = localStorage.getItem(k);
+      if (raw) {
+        var v = JSON.parse(raw);
+        if (v && typeof v.count === "number") return v;
+      }
+    } catch (e) {}
+    return LEAVE_MEM[k] ? clone(LEAVE_MEM[k]) : { count: 0, ack: false };
+  }
+  function setLeave(examId, studentId, rec) {
+    var k = leaveKey(examId, studentId);
+    LEAVE_MEM[k] = clone(rec);
+    try { localStorage.setItem(k, JSON.stringify(rec)); } catch (e) {}
+  }
+  function clearLeave(examId, studentId) {
+    var k = leaveKey(examId, studentId);
+    delete LEAVE_MEM[k];
+    try { localStorage.removeItem(k); } catch (e) {}
+  }
+
+  // The quiz being taken right now, or null when the guard shouldn't be watching.
+  function quizInProgress() {
+    if (UI.role !== "student" || UI.screen !== "take") return null;
+    var identity = getIdentity();
+    var ex = examById(UI.studentExamId);
+    if (!identity || !ex || !isExamOpen(ex)) return null;
+    if (submissionFor(ex.id, identity.studentId)) return null;
+    return { ex: ex, identity: identity };
+  }
+
+  function registerLeave() {
+    if (leaveAway) return; // this leave has already been counted
+    var q = quizInProgress();
+    if (!q) return;
+    leaveAway = true;
+    var rec = getLeave(q.ex.id, q.identity.studentId);
+    rec.count += 1;
+    if (rec.count === 1) {
+      rec.ack = false;
+      setLeave(q.ex.id, q.identity.studentId, rec);
+      refreshLeaveNotice();
+      syncLeaveWarning();
+    } else {
+      doSubmitExam(true);
+    }
+  }
+  function markReturned() {
+    leaveAway = false;
+    if (leaveBlurTimer) { clearTimeout(leaveBlurTimer); leaveBlurTimer = null; }
+  }
+
+  // The reminder strip at the top of the quiz.
+  function leaveNoticeHtml(rec) {
+    if (rec && rec.count >= 1) {
+      return '<div id="leave-notice" class="banner banner-warn" style="margin-bottom:16px"><span><strong>Warning &mdash; you have already left this quiz once.</strong> ' +
+        "If you leave this page again, your quiz will be submitted immediately.</span></div>";
+    }
+    return '<div id="leave-notice" class="banner banner-info" style="margin-bottom:16px"><span><strong>Stay on this page until you submit.</strong> ' +
+      esc(LEAVE_WARNING_TEXT) + " The first time you leave you get a warning; the second time your quiz is submitted immediately.</span></div>";
+  }
+  // Swaps just the strip, not the whole page, so the student's place in the quiz isn't disturbed.
+  function refreshLeaveNotice() {
+    var q = quizInProgress();
+    var el = document.getElementById("leave-notice");
+    if (q && el) el.outerHTML = leaveNoticeHtml(getLeave(q.ex.id, q.identity.studentId));
+  }
+
+  // The warning dialog lives outside #app so showing or hiding it never rebuilds the quiz.
+  function leaveOverlayEl() {
+    var el = document.getElementById("leave-overlay");
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "leave-overlay";
+    el.className = "leave-overlay";
+    el.hidden = true;
+    el.innerHTML =
+      '<div class="leave-dialog" role="alertdialog" aria-modal="true" aria-labelledby="leave-title" aria-describedby="leave-desc">' +
+      '<p class="eyebrow">Warning</p>' +
+      '<h2 id="leave-title">' + esc(LEAVE_WARNING_TEXT) + "</h2>" +
+      '<p class="sub" id="leave-desc">You left the quiz page. This is your only warning &mdash; if you leave again (another tab, window, app or site), your quiz will be submitted immediately with the answers you have so far.</p>' +
+      '<button type="button" class="btn btn-primary btn-block" id="leave-ack">I understand &mdash; return to the quiz</button>' +
+      "</div>";
+    document.body.appendChild(el);
+    el.querySelector("#leave-ack").addEventListener("click", function () {
+      var q = quizInProgress();
+      if (q) {
+        var rec = getLeave(q.ex.id, q.identity.studentId);
+        rec.ack = true;
+        setLeave(q.ex.id, q.identity.studentId, rec);
+      }
+      syncLeaveWarning();
+    });
+    return el;
+  }
+  function syncLeaveWarning() {
+    var q = quizInProgress();
+    var rec = q ? getLeave(q.ex.id, q.identity.studentId) : null;
+    var show = !!(rec && rec.count >= 1 && !rec.ack);
+    var el = document.getElementById("leave-overlay");
+    if (!show) { if (el) el.hidden = true; return; }
+    el = leaveOverlayEl();
+    if (el.hidden) {
+      el.hidden = false;
+      try { el.querySelector("#leave-ack").focus(); } catch (e) {}
+    }
+  }
+
+  // An auto-submitted quiz is also kept on this device until the sheet is
+  // seen to have it: if the student left by closing or navigating the tab,
+  // the normal save may have been cut off, so it's sent again as the page
+  // closes and, failing that, the next time this site is opened here.
+  var PENDING_KEY = "gradebook_forced_pending";
+  var PENDING_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+  var pendingSentThisLoad = false;
+  function getPendingForced() {
+    try {
+      var raw = localStorage.getItem(PENDING_KEY);
+      if (!raw) return null;
+      var v = JSON.parse(raw);
+      if (v && v.submission && v.at && Date.now() - v.at < PENDING_MAX_AGE_MS) return v.submission;
+      localStorage.removeItem(PENDING_KEY);
+    } catch (e) {}
+    return null;
+  }
+  function setPendingForced(submission) {
+    try { localStorage.setItem(PENDING_KEY, JSON.stringify({ submission: submission, at: Date.now() })); } catch (e) {}
+  }
+  function clearPendingForced() {
+    try { localStorage.removeItem(PENDING_KEY); } catch (e) {}
+  }
+  function retryPendingForced_() {
+    if (pendingSentThisLoad) return;
+    var p = getPendingForced();
+    if (!p) return;
+    pendingSentThisLoad = true;
+    clearPendingForced(); // one retry only
+    if (!examById(p.examId) || submissionFor(p.examId, p.studentId)) return;
+    applyAction({ type: "submitExam", submission: p });
+  }
+  // A request the browser keeps alive even though the page is going away.
+  // Nothing reads the reply; the backend does the write when the request arrives.
+  function beaconSubmit_(submission) {
+    try {
+      var url = API_URL + "?callback=__gbnoop&action=submitExam&payload=" + encodeURIComponent(JSON.stringify({ submission: submission }));
+      if (window.fetch) fetch(url, { method: "GET", mode: "no-cors", keepalive: true }).catch(function () {});
+    } catch (e) {}
+  }
+
+  function bindLeaveGuard() {
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") registerLeave();
+      else markReturned();
+    });
+    window.addEventListener("blur", function () {
+      if (leaveBlurTimer) clearTimeout(leaveBlurTimer);
+      leaveBlurTimer = setTimeout(function () {
+        leaveBlurTimer = null;
+        if (!document.hasFocus()) registerLeave();
+      }, LEAVE_BLUR_GRACE_MS);
+    });
+    window.addEventListener("focus", markReturned);
+    window.addEventListener("pageshow", markReturned);
+    window.addEventListener("pagehide", function () {
+      registerLeave();
+      var p = getPendingForced();
+      if (p) beaconSubmit_(p);
+    });
+  }
+
   /* ---------------- rendering ---------------- */
   function render() {
     saveUiSnapshot();
@@ -896,17 +1107,23 @@
       bannerHtml() +
       bodyHtml() +
       "</main>";
+    syncLeaveWarning();
   }
 
   function topbarHtml() {
+    // No way out of a quiz in progress except submitting it: the view switch
+    // (and the back link on the quiz itself) would otherwise let a student
+    // step off the quiz, look things up, and come back without being counted.
+    var switcher = quizInProgress() ? "" :
+      '<div class="roleswitch" role="tablist" aria-label="Switch view">' +
+      '<button type="button" data-action="switchRole" data-role="student" class="' + (UI.role === "student" ? "active" : "") + '">Student</button>' +
+      '<button type="button" data-action="switchRole" data-role="teacher" class="' + (UI.role === "teacher" ? "active" : "") + '">Instructor</button>' +
+      "</div>";
     return (
       '<header class="topbar">' +
       '<div class="brand"><span class="mark">&#9998;</span>' +
       '<span><span class="name">Gradebook</span><br><span class="tagline">Quizzes &middot; Grading &middot; Records</span></span></div>' +
-      '<div class="roleswitch" role="tablist" aria-label="Switch view">' +
-      '<button type="button" data-action="switchRole" data-role="student" class="' + (UI.role === "student" ? "active" : "") + '">Student</button>' +
-      '<button type="button" data-action="switchRole" data-role="teacher" class="' + (UI.role === "teacher" ? "active" : "") + '">Instructor</button>' +
-      "</div></header>"
+      switcher + "</header>"
     );
   }
 
@@ -1070,8 +1287,9 @@
       );
     }).join("");
     return (
-      '<div class="pagehead"><p class="eyebrow"><a href="#" data-action="backToExams">&larr; ' + esc(theCourse() ? theCourse().name : "") + '</a></p>' +
+      '<div class="pagehead"><p class="eyebrow">' + esc(theCourse() ? theCourse().name : "") + '</p>' +
       "<h1>" + esc(ex.title) + "</h1><p class=\"sub\">Answer every question, then submit. You won&#39;t be able to retake this exam.</p></div>" +
+      leaveNoticeHtml(getLeave(ex.id, identity.studentId)) +
       '<div class="card">' + qs +
       '<div style="margin-top:16px"><button type="button" class="btn btn-primary btn-block" data-action="submitExam">Submit</button></div></div>'
     );
@@ -1105,6 +1323,9 @@
     var saved = !!synced || (UI.banner !== "unavailable" && UI.banner !== "readonly" && UI.banner !== "error");
     return (
       '<div class="pagehead"><p class="eyebrow"><a href="#" data-action="backToExams">&larr; Exam list</a></p><h1>' + esc(ex.title) + "</h1></div>" +
+      (FORCED_EXAM_ID === ex.id
+        ? '<div class="banner banner-warn" style="margin-bottom:14px">This quiz was submitted automatically because you left the quiz page again after the warning.</div>'
+        : "") +
       '<div class="card scoreplate"><div class="num">' + sub.score + '<span class="frac"> / ' + sub.max + "</span></div>" +
       '<div class="pct">' + pct + "% &middot; " + esc(identity.name) + " (" + esc(identity.studentId) + ")</div></div>" +
       '<div class="card" style="margin-top:14px">' + rows + "</div>" +
@@ -1513,7 +1734,8 @@
   }
 
   /* ---------------- actions that need computation before dispatch ---------------- */
-  function doSubmitExam() {
+  // forced === true when the quiz is being submitted because the student left it a second time.
+  function doSubmitExam(forced) {
     var identity = getIdentity();
     var ex = examById(UI.studentExamId);
     if (!identity || !ex) return;
@@ -1527,6 +1749,12 @@
     };
     LOCAL_RESULT = submission;
     UI.screen = "result";
+    clearLeave(ex.id, identity.studentId); // the count is per attempt
+    if (forced === true) {
+      FORCED_EXAM_ID = ex.id;
+      setPendingForced(submission);
+      pendingSentThisLoad = true;
+    }
     render();
     applyAction({ type: "submitExam", submission: submission });
   }
@@ -1675,6 +1903,7 @@
           UI.screen = "take";
           ANSWERS = {};
           LOCAL_RESULT = null;
+          FORCED_EXAM_ID = null;
           render();
           break;
         case "reviewExam":
@@ -1688,7 +1917,7 @@
           render();
           break;
         case "submitExam":
-          doSubmitExam();
+          doSubmitExam(false);
           break;
         case "printResult":
           doPrintResult();
@@ -1992,6 +2221,7 @@
   /* ---------------- startup ---------------- */
   function init() {
     bindEvents();
+    bindLeaveGuard();
     render();
     subscribeDb();
     // A restored "Instructor" tab keeps its cached password (sessionStorage)
