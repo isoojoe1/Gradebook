@@ -341,10 +341,20 @@
   function theCourse() { return STATE.courses.length ? STATE.courses[0] : null; }
   function examById(id) { for (var i = 0; i < STATE.exams.length; i++) if (STATE.exams[i].id === id) return STATE.exams[i]; return null; }
   function examsForCourse(cid) { return STATE.exams.filter(function (e) { return e.courseId === cid; }); }
+  // Student IDs come back from the Google Sheet as numbers (Sheets turns
+  // "20261234" into 20261234, and drops leading zeros), while the ID a student
+  // types is text. A strict === between the two never matched, so a student
+  // who had already submitted still saw the quiz as "Available" and could take
+  // it again. Compare IDs as trimmed text, ignoring case and leading zeros.
+  function normId(v) {
+    var t = String(v == null ? "" : v).trim().toLowerCase();
+    return /^\d+$/.test(t) ? t.replace(/^0+(?=\d)/, "") : t;
+  }
+  function sameId(a, b) { return normId(a) === normId(b); }
   function submissionFor(examId, studentId) {
     for (var i = 0; i < STATE.submissions.length; i++) {
       var s = STATE.submissions[i];
-      if (s.examId === examId && s.studentId === studentId) return s;
+      if (String(s.examId) === String(examId) && sameId(s.studentId, studentId)) return s;
     }
     return null;
   }
@@ -790,7 +800,7 @@
     return String(examId) + "__" + String(studentId);
   }
   function rosterEntryFor(studentId) {
-    for (var i = 0; i < STATE.roster.length; i++) if (STATE.roster[i].studentId === studentId) return STATE.roster[i];
+    for (var i = 0; i < STATE.roster.length; i++) if (sameId(STATE.roster[i].studentId, studentId)) return STATE.roster[i];
     return null;
   }
 
@@ -814,9 +824,16 @@
         saveUiSnapshot();
         afterWrite({ ok: false, readOnly: true });
       } else {
+        if (type === "submitExam") {
+          // The sheet refused the score, so it wasn't recorded: unlock the quiz again.
+          var sb = payload.submission;
+          STATE.submissions = STATE.submissions.filter(function (x) { return x !== sb; });
+          lastStateJson = null;
+        }
         afterWrite({ ok: false, error: (res && res.error) || "unknown" });
       }
     }, function (err) {
+      if (type === "submitExam") lastStateJson = null; // re-read the sheet on the next poll: it decides whether the score was saved
       afterWrite({ ok: false, error: err });
     });
   }
@@ -1205,7 +1222,7 @@
     var rows = exams.map(function (ex) {
       var sub = submissionFor(ex.id, identity.studentId);
       var right = sub
-        ? '<div class="badge badge-good">Submitted ' + sub.score + "/" + sub.max + "</div>"
+        ? '<div class="badge badge-good">Completed &middot; ' + sub.score + "/" + sub.max + "</div>"
         : '<div class="badge badge-accent">Available</div>';
       var qn = ex.questions.length;
       var deadlineNote = ex.deadline ? " &middot; Closes " + esc(fmtDate(ex.deadline)) : "";
@@ -1748,6 +1765,10 @@
       submittedAt: new Date().toISOString()
     };
     LOCAL_RESULT = submission;
+    // Count it as submitted on this page straight away, so the quiz is locked
+    // even in the few seconds before the sheet confirms the score. The next
+    // read from the sheet replaces this list with what was actually saved.
+    STATE.submissions = STATE.submissions.concat([submission]);
     UI.screen = "result";
     clearLeave(ex.id, identity.studentId); // the count is per attempt
     if (forced === true) {
